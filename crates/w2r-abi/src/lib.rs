@@ -145,6 +145,51 @@ pub struct W2rEvtPeerMessage {
     pub data: W2rBuf,
 }
 
+/// `W2rMatchPlayer::flags`
+pub const W2R_PLAYER_HUMAN: u32 = 1 << 0;
+pub const W2R_PLAYER_COMPUTER: u32 = 1 << 1;
+pub const W2R_PLAYER_LOCAL: u32 = 1 << 2;
+/// `W2rMatchPlayer::result`; any other code is passed through unchanged
+pub const W2R_RESULT_NONE: u32 = 0;
+pub const W2R_RESULT_DEFEAT: u32 = 2;
+pub const W2R_RESULT_VICTORY: u32 = 3;
+pub const W2R_RESULT_DRAW: u32 = 5;
+/// `W2rEvtMatchEnd::flags`: the game flagged at least one turn as out of sync
+pub const W2R_MATCH_DESYNC: u32 = 1 << 0;
+
+/// One player's end-of-match tallies (`W2rEvtMatchEnd::players`).
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rMatchPlayer {
+    pub player: u32,
+    pub flags: u32,
+    pub result: u32,
+    pub units_killed: u32,
+    pub buildings_razed: u32,
+    pub units_lost: u32,
+    pub buildings_lost: u32,
+    pub gold_mined: u32,
+    pub lumber_mined: u32,
+    pub oil_mined: u32,
+    /// sanitised: printable ASCII only; empty without `chat.read`
+    pub name: W2rStr,
+}
+
+/// Payload of `W2R_EVT_MATCH_END`; NULL from a host that predates it.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rEvtMatchEnd {
+    pub struct_size: u32,
+    pub local_player: u32,
+    pub flags: u32,
+    pub turns: u32,
+    pub map: W2rStr,
+    pub player_count: u32,
+    /// `size_of::<W2rMatchPlayer>()` in the host: step by this
+    pub player_size: u32,
+    pub players: *const W2rMatchPlayer,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct W2rEvtGameMode {

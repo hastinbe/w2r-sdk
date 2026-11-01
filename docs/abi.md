@@ -233,12 +233,12 @@ messages per second has the excess dropped before any plugin sees them.
 |---|---|---|---|
 | `W2R_EVT_LOBBY_ENTER` 1 | none | none | the local player enters a lobby |
 | `W2R_EVT_LOBBY_LEAVE` 2 | none | none | the local player leaves a lobby |
-| `W2R_EVT_LOBBY_PLAYER_JOIN` 3 | `W2rEvtPlayer` | none; `name` is empty without `chat.read` | another player joins |
-| `W2R_EVT_LOBBY_PLAYER_LEAVE` 4 | `W2rEvtPlayer` | same | another player leaves |
-| `W2R_EVT_CHAT_RECEIVED` 5 | `W2rEvtChat` | `chat.read` | a chat line arrives |
+| `W2R_EVT_LOBBY_PLAYER_JOIN` 3 | `W2rEvtPlayer` | none; `name` is empty without `chat.read` | a human appears in a lobby seat. The first look after the lobby opens reports everyone already there, the local player included. Looked at 4 times a second |
+| `W2R_EVT_LOBBY_PLAYER_LEAVE` 4 | `W2rEvtPlayer` | same | a human's seat empties or its name changes |
+| `W2R_EVT_CHAT_RECEIVED` 5 | `W2rEvtChat` | `chat.read` | a public line a lobby member or a match player said (whispers never reach plugins). Raised after the host's own ignore list; `net_slot` is the sender's net slot and `name` the sender. Lines are printable ASCII, at most 200 bytes |
 | `W2R_EVT_PEER_MESSAGE` 6 | `W2rEvtPeerMessage` | `net.send` | a plugin message with this plugin's tag arrives |
 | `W2R_EVT_MATCH_START` 7 | none | none | a match begins (the game resets its map-message slots, as wc2r-plus detects it); delivered before the game's own reset runs |
-| `W2R_EVT_MATCH_END` 8 | none | none | the local player's `PlayerMatchResult` became non-zero (victory, defeat or leaving), once per match; fired from a host hook on `CheckMatchEnd` after the game's own function ran |
+| `W2R_EVT_MATCH_END` 8 | `W2rEvtMatchEnd` | none; player names are empty without `chat.read` | the local player's `PlayerMatchResult` became non-zero (victory, defeat or leaving), once per match; fired from a host hook on `CheckMatchEnd` after the game's own function ran |
 | `W2R_EVT_SETTINGS_CHANGED` 9 | none | none | the options screen stored new values for this plugin's declared settings (Apply or Save and Exit), once per apply |
 | `W2R_EVT_SHUTDOWN` 10 | none | none | the game is exiting |
 | `W2R_EVT_GAME_MODE` 11 | `W2rEvtGameMode` | none | the lobby's game mode changed (host choice, or the host's message arrived) or was reset when a match ended; `flags` bit 0 is Classic Balance, bit 1 says it is for a recording being played (replay, live watch), which is not a networked game. Hosts only turn a mode on when every player has the mod and the plugin that declares it, so a plugin that gets the flag can rely on every machine having it |
@@ -314,3 +314,22 @@ W2R_EXPORT const W2rPlugin *W2R_CALL w2r_plugin_main(const W2rHost *host) {
 
 This is compiled as part of `crates/w2r-abi/tests/abi_layout.c` by `bash tools/check_abi.sh`, which
 also checks struct layout as C11, C++17 and, when a 32-bit toolchain is installed, 32-bit.
+
+## Match end payload
+
+`W2R_EVT_MATCH_END` carries a `W2rEvtMatchEnd` (a host that predates it sends NULL, so check). It
+gives the local player's index, the number of game turns, whether the game flagged any turn as out
+of sync (`W2R_MATCH_DESYNC`), the lobby's map name, and one `W2rMatchPlayer` per player who played
+(humans and computers; step through the array by `player_size`, not `sizeof`). Per player:
+
+- `flags`: `W2R_PLAYER_HUMAN`, `W2R_PLAYER_COMPUTER`, `W2R_PLAYER_LOCAL`.
+- `result`: the game's own code, `W2R_RESULT_VICTORY` (3), `W2R_RESULT_DEFEAT` (2),
+  `W2R_RESULT_NONE` (0, for a player whose result was never written, such as one who left or
+  surrendered) or `W2R_RESULT_DRAW` (5); any other code is passed through.
+- the tallies the game's results screen shows: units killed, buildings razed, units lost,
+  buildings lost, and gold, lumber and oil mined.
+- `name`: printable ASCII, empty without `chat.read`.
+
+Every machine in the match sees the same simulation, so the tallies agree between players, but a
+player who closed the game early may never raise the event. The event is raised once per match,
+for the local player's own match end, not for a replay being watched.

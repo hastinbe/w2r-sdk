@@ -86,7 +86,7 @@ enum {
     W2R_EVT_CHAT_RECEIVED = 5,      /* payload W2rEvtChat; needs chat.read */
     W2R_EVT_PEER_MESSAGE = 6,       /* payload W2rEvtPeerMessage; needs net.send */
     W2R_EVT_MATCH_START = 7,
-    W2R_EVT_MATCH_END = 8,
+    W2R_EVT_MATCH_END = 8,          /* payload W2rEvtMatchEnd (added later; NULL from an older host) */
     W2R_EVT_SETTINGS_CHANGED = 9,
     W2R_EVT_SHUTDOWN = 10,
     W2R_EVT_GAME_MODE = 11          /* payload W2rEvtGameMode; the lobby's game mode for the next match */
@@ -125,6 +125,45 @@ typedef struct W2rEvtGameMode {
     uint32_t struct_size;
     uint32_t flags; /* W2R_GAME_MODE_*: the modes in force for the next match, on every machine */
 } W2rEvtGameMode;
+
+/* W2R_EVT_MATCH_END: how the match ended for the local player, and the final tallies of everyone
+   who played. A host that predates the payload sends NULL, so check it. Player names are empty
+   without chat.read, like the lobby events. */
+enum {
+    W2R_PLAYER_HUMAN = 1u << 0,
+    W2R_PLAYER_COMPUTER = 1u << 1,
+    W2R_PLAYER_LOCAL = 1u << 2
+};
+enum {
+    W2R_RESULT_NONE = 0,    /* no result was written: surrendered, left, or never decided */
+    W2R_RESULT_DEFEAT = 2,
+    W2R_RESULT_VICTORY = 3,
+    W2R_RESULT_DRAW = 5     /* any other code is passed through unchanged */
+};
+enum { W2R_MATCH_DESYNC = 1u << 0 /* the game flagged at least one turn as out of sync */ };
+typedef struct W2rMatchPlayer {
+    uint32_t player;          /* the player's index in the match, 0 to 7 */
+    uint32_t flags;           /* W2R_PLAYER_* */
+    uint32_t result;          /* W2R_RESULT_* */
+    uint32_t units_killed;
+    uint32_t buildings_razed;
+    uint32_t units_lost;
+    uint32_t buildings_lost;
+    uint32_t gold_mined;
+    uint32_t lumber_mined;
+    uint32_t oil_mined;
+    W2rStr name;              /* sanitised: printable ASCII only; empty without chat.read */
+} W2rMatchPlayer;
+typedef struct W2rEvtMatchEnd {
+    uint32_t struct_size;
+    uint32_t local_player;    /* index of the local player */
+    uint32_t flags;           /* W2R_MATCH_* */
+    uint32_t turns;           /* game turns that ran */
+    W2rStr map;               /* the lobby's map name; sanitised */
+    uint32_t player_count;
+    uint32_t player_size;     /* sizeof(W2rMatchPlayer) in the host: step by this, not sizeof */
+    const W2rMatchPlayer *players;
+} W2rEvtMatchEnd;
 
 /* ---- overlay (overlay_set; docs/abi.md, "Overlay") ------------------------------------------ */
 enum {
