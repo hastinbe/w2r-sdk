@@ -347,6 +347,18 @@ impl W2rGameSnapshot {
     }
 }
 
+// ---- HUD text -------------------------------------------------------------------------------
+/// `hud_text_set` places: above the APM counter and the clock (the original place)
+pub const W2R_HUD_BOTTOM_RIGHT: u32 = 0;
+/// below the resource bar
+pub const W2R_HUD_TOP_LEFT: u32 = 1;
+pub const W2R_HUD_TOP_RIGHT: u32 = 2;
+pub const W2R_HUD_TOP_CENTER: u32 = 3;
+/// lines per plugin, in all places together
+pub const W2R_MAX_HUD_LINES: u32 = 4;
+pub const W2R_MAX_HUD_KEY: u32 = 32;
+pub const W2R_MAX_HUD_TEXT: u32 = 64;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct W2rHost {
@@ -516,6 +528,11 @@ pub struct W2rHost {
     /// arguments when the player types it, and the line is not sent. docs/abi.md, "Hotkeys and
     /// commands".
     pub command_register: unsafe extern "C" fn(token: *mut c_void, name: W2rStr, id: u32) -> W2rStatus,
+
+    // Appended after `command_register`: check `struct_size >= W2R_HOST_HUD_TEXT_SIZE`.
+    /// Sets (or, with empty `text`, removes) one line of the plugin's HUD text at `place`
+    /// (`W2R_HUD_*`). docs/abi.md, "HUD text".
+    pub hud_text_set: unsafe extern "C" fn(token: *mut c_void, key: W2rStr, text: W2rStr, place: u32) -> W2rStatus,
 }
 
 // ---- overlay --------------------------------------------------------------------------------
@@ -758,6 +775,25 @@ pub unsafe fn command_register(host: *const W2rHost, name: &str, id: u32) -> W2r
     unsafe { (h.command_register)(h.token, name, id) }
 }
 
+/// Sets or removes a HUD line on a host that has `hud_text_set`; `W2R_E_UNSUPPORTED` on an older
+/// one. An empty `text` removes the line.
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn hud_text_set(host: *const W2rHost, key: &str, text: &str, place: u32) -> W2rStatus {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return W2R_E_INVALID;
+    };
+    if h.struct_size < W2R_HOST_HUD_TEXT_SIZE {
+        return W2R_E_UNSUPPORTED;
+    }
+    let s = |t: &str| W2rStr {
+        ptr: t.as_ptr().cast(),
+        len: t.len() as u32,
+    };
+    unsafe { (h.hud_text_set)(h.token, s(key), s(text), place) }
+}
+
 // ---- plugin table: returned by the plugin --------------------------------------------------
 /// Callbacks are `Option` because a plugin may leave any of them NULL; the host checks
 /// `on_load` is present (`E_ENTRY` otherwise) and skips the others when absent.
@@ -807,7 +843,11 @@ pub const W2R_HOST_HOTKEY_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, hotkey_register) + core::mem::size_of::<usize>()) as u32;
 
 /// `struct_size` of a host that has `command_register` (and everything before it).
-pub const W2R_HOST_COMMAND_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_COMMAND_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, command_register) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `hud_text_set` (and everything before it).
+pub const W2R_HOST_HUD_TEXT_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -850,7 +890,7 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 124);
+        assert_eq!(size_of::<W2rHost>(), 128);
         assert_eq!(size_of::<W2rOverlayItem>(), 24);
         assert_eq!(W2R_HOST_OVERLAY_SIZE, 108);
         assert_eq!(W2R_HOST_SET_CHOICES_SIZE, 112);
@@ -872,7 +912,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 240);
+        assert_eq!(size_of::<W2rHost>(), 248);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

@@ -293,6 +293,17 @@ typedef struct W2rGameSnapshot {
     W2rPlayerInfo players[W2R_MAX_PLAYERS];
 } W2rGameSnapshot;
 
+/* ---- HUD text (hud_text_set; docs/abi.md, "HUD text") ----------------------------------------- */
+enum {
+    W2R_HUD_BOTTOM_RIGHT = 0, /* above the APM counter and the clock (the original place) */
+    W2R_HUD_TOP_LEFT = 1,     /* below the resource bar */
+    W2R_HUD_TOP_RIGHT = 2,
+    W2R_HUD_TOP_CENTER = 3
+};
+#define W2R_MAX_HUD_LINES 4u   /* per plugin, in all places together */
+#define W2R_MAX_HUD_KEY 32u
+#define W2R_MAX_HUD_TEXT 64u
+
 typedef struct W2rHost {
     uint32_t struct_size; /* check before using any field past the version you built against */
     uint32_t abi_version;
@@ -400,6 +411,15 @@ typedef struct W2rHost {
        plugin uses it; W2R_E_LIMIT: more than 8. No capability is needed.
        */
     W2rStatus (W2R_CALL *command_register)(void *token, W2rStr name, uint32_t id);
+
+    /* Appended after command_register: check host->struct_size >= W2R_HOST_HUD_TEXT_SIZE.
+       Sets (or, with empty `text`, removes) the plugin's HUD line `key` (1 to 32 bytes) in the
+       in-match HUD: one line of printable ASCII, at most 64 bytes, at `place` (W2R_HUD_*). A plugin
+       has at most 4 lines in all places together. Nothing is drawn outside a match or while a
+       recording plays. W2R_E_INVALID: bad key or text or place; W2R_E_LIMIT: a fifth line.
+       No capability is needed.
+       */
+    W2rStatus (W2R_CALL *hud_text_set)(void *token, W2rStr key, W2rStr text, uint32_t place);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -410,6 +430,7 @@ typedef struct W2rHost {
 #define W2R_HOST_SNAPSHOT_SIZE (offsetof(W2rHost, game_snapshot) + sizeof(void *))
 #define W2R_HOST_HOTKEY_SIZE (offsetof(W2rHost, hotkey_register) + sizeof(void *))
 #define W2R_HOST_COMMAND_SIZE (offsetof(W2rHost, command_register) + sizeof(void *))
+#define W2R_HOST_HUD_TEXT_SIZE (offsetof(W2rHost, hud_text_set) + sizeof(void *))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {
