@@ -155,7 +155,7 @@ is immutable, but your local installs are your own.)
 To go back to the real thing, remove your build and install the published one:
 
 ```
-cargo run -p w2r-loader-cli -- remove <your-plugin-id>
+w2r-loader remove <your-plugin-id>
 ```
 
 ### Reading the log
