@@ -245,6 +245,41 @@ typedef struct W2rUi {
 #define W2R_COLOR_HEX_BYTES 7u
 
 /* ---- host table: provided by the host, one instance per plugin ------------------------- */
+/* ---- game snapshot (game_snapshot; docs/abi.md, "Game snapshot") ----------------------------- */
+enum {
+    W2R_SNAPSHOT_IN_MATCH = 1u << 0,
+    W2R_SNAPSHOT_PAUSED = 1u << 1,
+    W2R_SNAPSHOT_REPLAY = 1u << 2,   /* a recording is being played back */
+    W2R_SNAPSHOT_OBSERVER = 1u << 3  /* the local player is watching, not playing */
+};
+enum { W2R_PLAYER_ALLY = 1u << 3 /* on the local player's team (W2rPlayerInfo only) */ };
+#define W2R_NONE 0xFFFFFFFFu /* "no value" in the unsigned fields of the snapshot */
+#define W2R_MAX_PLAYERS 8u
+typedef struct W2rPlayerInfo {
+    uint32_t player;   /* index in the match, 0 to 7 */
+    uint32_t flags;    /* W2R_PLAYER_HUMAN | COMPUTER | LOCAL | ALLY */
+    uint32_t race;     /* the game's race byte: 0 human, 1 orc; W2R_NONE if unknown */
+    uint32_t team;     /* the lobby team as the game stores it; W2R_NONE if unknown */
+    uint32_t colour;   /* colour index 0 to 7; W2R_NONE before the game assigns one */
+    uint32_t result;   /* W2R_RESULT_*: non-zero once the player's match is decided */
+    int32_t gold;      /* -1 where the local player may not know: not yourself or an ally */
+    int32_t lumber;
+    int32_t oil;
+    int32_t food_used; /* -1 likewise */
+    int32_t food_cap;
+    W2rStr name;       /* sanitised: printable ASCII only; empty without chat.read. Valid until the
+                          next game_snapshot call. */
+} W2rPlayerInfo;
+typedef struct W2rGameSnapshot {
+    uint32_t struct_size;    /* IN: sizeof(W2rGameSnapshot) as the plugin was built */
+    uint32_t flags;          /* W2R_SNAPSHOT_* */
+    uint32_t game_ms;        /* the match clock, pause-aware */
+    uint32_t turn;           /* network turns run so far */
+    uint32_t local_player;   /* the player whose view the screen shows; W2R_NONE if unknown */
+    uint32_t player_count;   /* entries used in players[] */
+    W2rPlayerInfo players[W2R_MAX_PLAYERS];
+} W2rGameSnapshot;
+
 typedef struct W2rHost {
     uint32_t struct_size; /* check before using any field past the version you built against */
     uint32_t abi_version;
@@ -325,6 +360,15 @@ typedef struct W2rHost {
        16, 1 to 64 bytes each), copied during the call. W2R_E_NOT_FOUND for another key. */
     W2rStatus (W2R_CALL *settings_set_choices)(void *token, W2rStr key, const W2rStr *choices,
                                                uint32_t count);
+
+    /* Appended after settings_set_choices: check host->struct_size >= W2R_HOST_SNAPSHOT_SIZE.
+       Fills `*out` with the match as the local player may know it: the clock, the pause state and the
+       players with their race, team, colour, result and resources. Requires `game.read`. Another
+       player's resources and food are -1 unless that player is on the local player's team, the
+       local player is only watching (observer), or a recording is being played, so a plugin cannot
+       see what the game itself hides. W2R_E_STATE outside a match.
+       */
+    W2rStatus (W2R_CALL *game_snapshot)(void *token, W2rGameSnapshot *out);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -332,6 +376,7 @@ typedef struct W2rHost {
 #define W2R_HOST_SETTINGS_DECLARE_SIZE (offsetof(W2rHost, settings_declare) + sizeof(void *))
 #define W2R_HOST_OVERLAY_SIZE (offsetof(W2rHost, overlay_set) + sizeof(void *))
 #define W2R_HOST_SET_CHOICES_SIZE (offsetof(W2rHost, settings_set_choices) + sizeof(void *))
+#define W2R_HOST_SNAPSHOT_SIZE (offsetof(W2rHost, game_snapshot) + sizeof(void *))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {

@@ -67,7 +67,7 @@ Notes:
   `LPT1`-`LPT9`, case-insensitive, with any extension) are refused. The suffix is exact and
   lowercase: `main.LUA`, `main.luac` and `main.lua.txt` are `bad_entry`.
 - **Script plugins** (lua-plugins.md): for a `.lua` entry, `abi` is the script
-  API version rather than the C ABI version, `capabilities` may hold only `chat.read` and
+  API version rather than the C ABI version, `capabilities` may hold only `chat.read`, `game.read` and
   `chat.write`, and `affects_simulation` must be `false`; a manifest that breaks either of the
   last two is `bad_script`. An unknown capability on a script is still `bad_capability`, and a
   non-boolean `affects_simulation` still `bad_type` (those checks come first).

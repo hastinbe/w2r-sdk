@@ -24,7 +24,7 @@ BUILD_RE = re.compile(r"^(" + _BUILD + r")(?:-(" + _BUILD + r"))?$")
 ENTRY_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll|lua)$")
 SCRIPT_SUFFIX = ".lua"
 # What a Lua script plugin (docs/lua-plugins.md) may ask for; it has no way to use the rest.
-SCRIPT_CAPABILITIES = {"chat.read", "chat.write"}
+SCRIPT_CAPABILITIES = {"chat.read", "chat.write", "game.read"}
 _NUM = r"(?:0|[1-9][0-9]*)"
 _CMP = r"(?:>=|<=|>|<|=)" + _NUM + r"\." + _NUM + r"\." + _NUM
 REQ_RE = re.compile(r"^" + _CMP + r"(?:," + _CMP + r"){0,3}$")

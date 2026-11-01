@@ -262,6 +262,67 @@ pub const W2R_COLOR_HEX_BYTES: u32 = 7;
 /// The host fills every version-1 field, so these pointers are never null for a version-1 host.
 /// A plugin built against a later version must check `struct_size` before touching fields past
 /// the version it was built for.
+// ---- game snapshot --------------------------------------------------------------------------
+/// `W2rGameSnapshot::flags`
+pub const W2R_SNAPSHOT_IN_MATCH: u32 = 1 << 0;
+pub const W2R_SNAPSHOT_PAUSED: u32 = 1 << 1;
+/// a recording is being played back
+pub const W2R_SNAPSHOT_REPLAY: u32 = 1 << 2;
+/// the local player is watching, not playing
+pub const W2R_SNAPSHOT_OBSERVER: u32 = 1 << 3;
+/// `W2rPlayerInfo::flags`: on the local player's team
+pub const W2R_PLAYER_ALLY: u32 = 1 << 3;
+/// "no value" in the unsigned fields of the snapshot
+pub const W2R_NONE: u32 = 0xFFFF_FFFF;
+pub const W2R_MAX_PLAYERS: usize = 8;
+
+/// One player in a [`W2rGameSnapshot`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rPlayerInfo {
+    pub player: u32,
+    pub flags: u32,
+    pub race: u32,
+    pub team: u32,
+    pub colour: u32,
+    pub result: u32,
+    pub gold: i32,
+    pub lumber: i32,
+    pub oil: i32,
+    pub food_used: i32,
+    pub food_cap: i32,
+    /// valid until the next `game_snapshot` call
+    pub name: W2rStr,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rGameSnapshot {
+    /// in: `size_of::<W2rGameSnapshot>()`
+    pub struct_size: u32,
+    pub flags: u32,
+    pub game_ms: u32,
+    pub turn: u32,
+    pub local_player: u32,
+    pub player_count: u32,
+    pub players: [W2rPlayerInfo; W2R_MAX_PLAYERS],
+}
+
+impl W2rGameSnapshot {
+    pub const fn zeroed() -> Self {
+        const NO_STR: W2rStr = W2rStr { ptr: core::ptr::null(), len: 0 };
+        const P: W2rPlayerInfo = W2rPlayerInfo {
+            player: 0, flags: 0, race: 0, team: 0, colour: 0, result: 0,
+            gold: 0, lumber: 0, oil: 0, food_used: 0, food_cap: 0, name: NO_STR,
+        };
+        W2rGameSnapshot {
+            struct_size: core::mem::size_of::<W2rGameSnapshot>() as u32,
+            flags: 0, game_ms: 0, turn: 0, local_player: 0, player_count: 0,
+            players: [P; W2R_MAX_PLAYERS],
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct W2rHost {
@@ -412,6 +473,13 @@ pub struct W2rHost {
         choices: *const W2rStr,
         count: u32,
     ) -> W2rStatus,
+
+    // Appended after `settings_set_choices`: check `struct_size >= W2R_HOST_SNAPSHOT_SIZE`.
+    /// Fills the snapshot with the match as the local player may know it (clock, pause, players with
+    /// race, team, colour, result and resources). Needs `game.read`. Other players' resources are -1
+    /// unless they are on the local player's team, the local player observes, or a recording plays.
+    /// `W2R_E_STATE` outside a match. docs/abi.md, "Game snapshot".
+    pub game_snapshot: unsafe extern "C" fn(token: *mut c_void, out: *mut W2rGameSnapshot) -> W2rStatus,
 }
 
 // ---- overlay --------------------------------------------------------------------------------
@@ -602,6 +670,21 @@ pub unsafe fn settings_set_choices(host: *const W2rHost, key: &str, choices: &[W
     unsafe { (h.settings_set_choices)(h.token, key, choices.as_ptr(), choices.len() as u32) }
 }
 
+/// Fills a snapshot on a host that has `game_snapshot`; `W2R_E_UNSUPPORTED` on an older one.
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn game_snapshot(host: *const W2rHost, out: &mut W2rGameSnapshot) -> W2rStatus {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return W2R_E_INVALID;
+    };
+    if h.struct_size < W2R_HOST_SNAPSHOT_SIZE {
+        return W2R_E_UNSUPPORTED;
+    }
+    out.struct_size = core::mem::size_of::<W2rGameSnapshot>() as u32;
+    unsafe { (h.game_snapshot)(h.token, out) }
+}
+
 // ---- plugin table: returned by the plugin --------------------------------------------------
 /// Callbacks are `Option` because a plugin may leave any of them NULL; the host checks
 /// `on_load` is present (`E_ENTRY` otherwise) and skips the others when absent.
@@ -639,7 +722,11 @@ pub const W2R_HOST_SETTINGS_DECLARE_SIZE: u32 =
 pub const W2R_HOST_OVERLAY_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, overlay_set) + core::mem::size_of::<usize>()) as u32;
 /// `struct_size` of a host that also has `settings_set_choices`.
-pub const W2R_HOST_SET_CHOICES_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_SET_CHOICES_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, settings_set_choices) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `game_snapshot` (and everything before it).
+pub const W2R_HOST_SNAPSHOT_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -682,10 +769,11 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 112);
+        assert_eq!(size_of::<W2rHost>(), 116);
         assert_eq!(size_of::<W2rOverlayItem>(), 24);
         assert_eq!(W2R_HOST_OVERLAY_SIZE, 108);
         assert_eq!(W2R_HOST_SET_CHOICES_SIZE, 112);
+        assert_eq!(W2R_HOST_SNAPSHOT_SIZE, 116);
         assert_eq!(W2R_HOST_V1_SIZE, 84);
         assert_eq!(W2R_PLUGIN_V1_SIZE, 20);
         assert_eq!(W2R_HOST_CREATE_UI_SIZE, 96);
@@ -703,7 +791,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 216);
+        assert_eq!(size_of::<W2rHost>(), 224);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

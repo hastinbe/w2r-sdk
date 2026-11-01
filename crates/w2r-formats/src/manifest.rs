@@ -165,7 +165,7 @@ pub fn is_valid_id(s: &str) -> bool {
 /// The entry suffix of a Lua script plugin (docs/lua-plugins.md); anything else is a DLL.
 pub const SCRIPT_SUFFIX: &str = ".lua";
 /// The capabilities a script plugin may ask for: it has no way to use the others.
-pub const SCRIPT_CAPABILITIES: &[&str] = &["chat.read", "chat.write"];
+pub const SCRIPT_CAPABILITIES: &[&str] = &["chat.read", "chat.write", "game.read"];
 
 /// `[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll|lua)`, no `..`, stem not a device name.
 fn is_valid_entry(s: &str) -> bool {

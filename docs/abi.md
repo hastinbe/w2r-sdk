@@ -333,3 +333,25 @@ of sync (`W2R_MATCH_DESYNC`), the lobby's map name, and one `W2rMatchPlayer` per
 Every machine in the match sees the same simulation, so the tallies agree between players, but a
 player who closed the game early may never raise the event. The event is raised once per match,
 for the local player's own match end, not for a replay being watched.
+
+## Game snapshot
+
+`game_snapshot(token, W2rGameSnapshot *out)` (needs `game.read`; appended to the host table, check
+`struct_size >= W2R_HOST_SNAPSHOT_SIZE`) fills in the match as the local player may know it. Set
+`out->struct_size = sizeof(W2rGameSnapshot)` first. It returns `W2R_E_STATE` outside a match.
+
+- `flags`: `W2R_SNAPSHOT_IN_MATCH`, `_PAUSED`, `_REPLAY` (a recording is playing), `_OBSERVER` (the
+  local player is only watching).
+- `game_ms` is the match clock, which stops while the game is paused; `turn` counts network turns.
+- `local_player` is the player whose view is on screen (`W2R_NONE` if unknown).
+- `players[0..player_count]` lists the humans and computers playing: index, `W2R_PLAYER_*` flags
+  (human, computer, local, and `W2R_PLAYER_ALLY` for the local player's team), race (0 human,
+  1 orc), lobby team, colour index, the result code (`W2R_RESULT_*`, non-zero once decided) and
+  the resources.
+- **Hidden values.** `gold`, `lumber`, `oil`, `food_used` and `food_cap` are -1 for a player who is
+  not the local player or on the local player's team, unless the local player is only watching
+  or a recording is playing. A plugin therefore learns nothing the game itself hides.
+- `name` is empty without `chat.read` and is valid until the next `game_snapshot` call.
+
+It costs a handful of memory reads; calling it once per second is fine, once per frame is not
+needed. There is no event for changes.

@@ -670,6 +670,50 @@
    "abi": 1,
    "affects_simulation": false,
    "author": "someone",
+   "capabilities": [
+    "game.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "main.lua",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "lua_game_read_ok"
+ },
+ {
+  "expect": "bad_script",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.send"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "main.lua",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "lua_net_send_denied"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
    "capabilities": [],
    "dependencies": [],
    "description": "One sentence.",
@@ -883,28 +927,6 @@
    "version": "1.2.0"
   },
   "name": "lua_entry_trailing_newline"
- },
- {
-  "expect": "bad_script",
-  "manifest": {
-   "abi": 1,
-   "affects_simulation": false,
-   "author": "someone",
-   "capabilities": [
-    "game.read"
-   ],
-   "dependencies": [],
-   "description": "One sentence.",
-   "entry": "main.lua",
-   "game_builds": [
-    "1.0.2.2818"
-   ],
-   "id": "example-plugin",
-   "name": "Example Plugin",
-   "schema": 1,
-   "version": "1.2.0"
-  },
-  "name": "lua_game_read_refused"
  },
  {
   "expect": "bad_script",
