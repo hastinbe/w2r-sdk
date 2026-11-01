@@ -8,8 +8,8 @@ FIELDS = {
     "schema", "id", "name", "version", "author", "description", "entry", "abi",
     "game_builds", "capabilities", "affects_simulation", "dependencies",
 }
-OPTIONAL_FIELDS = {"replaces"}
-CAPABILITIES = {"game.read", "chat.read", "chat.write", "net.send", "hooks.raw", "game.control"}
+OPTIONAL_FIELDS = {"replaces", "net_hosts"}
+CAPABILITIES = {"game.read", "chat.read", "chat.write", "net.send", "hooks.raw", "game.control", "net.http"}
 RESERVED_DEVICES = {"CON", "PRN", "AUX", "NUL"} | {"COM%d" % i for i in range(1, 10)} | {
     "LPT%d" % i for i in range(1, 10)
 }
@@ -24,7 +24,7 @@ BUILD_RE = re.compile(r"^(" + _BUILD + r")(?:-(" + _BUILD + r"))?$")
 ENTRY_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll|lua)$")
 SCRIPT_SUFFIX = ".lua"
 # What a Lua script plugin (docs/lua-plugins.md) may ask for; it has no way to use the rest.
-SCRIPT_CAPABILITIES = {"chat.read", "chat.write", "game.read", "game.control"}
+SCRIPT_CAPABILITIES = {"chat.read", "chat.write", "game.read", "game.control", "net.http"}
 _NUM = r"(?:0|[1-9][0-9]*)"
 _CMP = r"(?:>=|<=|>|<|=)" + _NUM + r"\." + _NUM + r"\." + _NUM
 REQ_RE = re.compile(r"^" + _CMP + r"(?:," + _CMP + r"){0,3}$")
@@ -130,6 +130,34 @@ def _caps_ok(caps):
     return None
 
 
+def valid_net_host(s):
+    if not isinstance(s, str) or not s or len(s) > 253 or not s.isascii():
+        return False
+    labels = s.split(".")
+    if len(labels) < 2:
+        return False
+    for label in labels:
+        if not 1 <= len(label) <= 63 or label.startswith("-") or label.endswith("-"):
+            return False
+        if not all(c in "abcdefghijklmnopqrstuvwxyz0123456789-" for c in label):
+            return False
+    return any(c in "abcdefghijklmnopqrstuvwxyz" for c in labels[-1])
+
+
+def _net_hosts_ok(doc):
+    wants = "net.http" in doc["capabilities"]
+    if "net_hosts" not in doc:
+        return "bad_net_hosts" if wants else None
+    hosts = doc["net_hosts"]
+    if not isinstance(hosts, list):
+        return "bad_type"
+    if not wants or not 1 <= len(hosts) <= 4:
+        return "bad_net_hosts"
+    if not all(valid_net_host(h) for h in hosts) or len(set(hosts)) != len(hosts):
+        return "bad_net_hosts"
+    return None
+
+
 def validate_manifest(raw):
     if len(raw) > MAX_BYTES:
         return "too_large"
@@ -169,5 +197,7 @@ def validate_manifest(raw):
     if err:
         return err
     if "replaces" in doc:
-        return _replaces_ok(doc["replaces"], doc["id"], doc["dependencies"]) or "ok"
-    return "ok"
+        err = _replaces_ok(doc["replaces"], doc["id"], doc["dependencies"])
+        if err:
+            return err
+    return _net_hosts_ok(doc) or "ok"

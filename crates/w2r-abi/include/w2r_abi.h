@@ -91,7 +91,8 @@ enum {
     W2R_EVT_SHUTDOWN = 10,
     W2R_EVT_GAME_MODE = 11,         /* payload W2rEvtGameMode; the lobby's game mode for the next match */
     W2R_EVT_HOTKEY = 12,            /* payload W2rEvtHotkey; sent to the plugin that registered the key */
-    W2R_EVT_COMMAND = 13            /* payload W2rEvtCommand; sent to the plugin that registered the command */
+    W2R_EVT_COMMAND = 13,           /* payload W2rEvtCommand; sent to the plugin that registered the command */
+    W2R_EVT_HTTP_RESPONSE = 14      /* payload W2rEvtHttp; sent to the plugin that made the request */
 };
 
 typedef struct W2rEvent {
@@ -357,6 +358,33 @@ typedef struct W2rOrderRequest {
     W2rUnitRef units[W2R_MAX_ORDER_UNITS];
 } W2rOrderRequest;
 
+/* ---- HTTP (http_request; docs/abi.md, "HTTP") ------------------------------------------------ */
+enum { W2R_HTTP_GET = 0, W2R_HTTP_POST = 1 };
+enum {
+    W2R_HTTP_OK = 0,           /* W2rEvtHttp.error: an answer came back; see `status` */
+    W2R_HTTP_FAILED = 1,       /* no answer: could not connect, timed out, redirected or aborted */
+    W2R_HTTP_TOO_LARGE = 2     /* the answer was longer than W2R_MAX_HTTP_RESPONSE */
+};
+#define W2R_MAX_HTTP_URL 512u
+#define W2R_MAX_HTTP_BODY 16384u
+#define W2R_MAX_HTTP_RESPONSE 262144u
+#define W2R_MAX_HTTP_IN_FLIGHT 4u
+typedef struct W2rHttpRequest {
+    uint32_t struct_size;   /* sizeof(W2rHttpRequest) */
+    uint32_t id;            /* chosen by the plugin; comes back in the answer */
+    uint32_t method;        /* W2R_HTTP_GET or W2R_HTTP_POST */
+    W2rStr url;             /* https://host/path?query, host from the manifest's net_hosts */
+    W2rStr content_type;    /* POST only; printable ASCII, at most 64 bytes; empty means application/json */
+    W2rBuf body;            /* POST only; at most W2R_MAX_HTTP_BODY bytes */
+} W2rHttpRequest;
+typedef struct W2rEvtHttp {
+    uint32_t struct_size;
+    uint32_t id;       /* the id of the request */
+    uint32_t status;   /* the HTTP status, or 0 when error is not W2R_HTTP_OK */
+    uint32_t error;    /* W2R_HTTP_* */
+    W2rBuf body;       /* the answer's body; valid only during the callback */
+} W2rEvtHttp;
+
 typedef struct W2rHost {
     uint32_t struct_size; /* check before using any field past the version you built against */
     uint32_t abi_version;
@@ -494,6 +522,16 @@ typedef struct W2rHost {
        8 orders in a second from this plugin.
        */
     W2rStatus (W2R_CALL *order_issue)(void *token, const W2rOrderRequest *request);
+
+    /* Appended after order_issue: check host->struct_size >= W2R_HOST_HTTP_SIZE.
+       Sends an HTTPS request to one of the servers the plugin's manifest names in `net_hosts`
+       (and the user approved when installing it). The answer comes later as W2R_EVT_HTTP_RESPONSE
+       with the same `id`, without subscribing. Requires `net.http`. Only https on port 443, no
+       redirects, no cookies, no other headers. W2R_E_INVALID: a bad URL, a host not in net_hosts,
+       an IP address or a bad size or method; W2R_E_LIMIT: 4 requests already in flight;
+       W2R_E_RATE: more than 30 requests in a minute; W2R_E_STATE: not allowed in on_load.
+       */
+    W2rStatus (W2R_CALL *http_request)(void *token, const W2rHttpRequest *request);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -507,6 +545,7 @@ typedef struct W2rHost {
 #define W2R_HOST_HUD_TEXT_SIZE (offsetof(W2rHost, hud_text_set) + sizeof(void *))
 #define W2R_HOST_UNITS_SIZE (offsetof(W2rHost, units_query) + sizeof(void *))
 #define W2R_HOST_ORDER_SIZE (offsetof(W2rHost, order_issue) + sizeof(void *))
+#define W2R_HOST_HTTP_SIZE (offsetof(W2rHost, http_request) + sizeof(void *))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {

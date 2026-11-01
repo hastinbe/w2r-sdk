@@ -106,6 +106,8 @@ pub const W2R_EVT_GAME_MODE: W2rEventId = 11;
 pub const W2R_EVT_HOTKEY: W2rEventId = 12;
 /// payload W2rEvtCommand; sent to the plugin that registered the command
 pub const W2R_EVT_COMMAND: W2rEventId = 13;
+/// payload W2rEvtHttp; sent to the plugin that made the request
+pub const W2R_EVT_HTTP_RESPONSE: W2rEventId = 14;
 /// `W2rEvtGameMode::flags`: the Classic Balance mode is on
 pub const W2R_GAME_MODE_CLASSIC_BALANCE: u32 = 1 << 0;
 /// `W2rEvtGameMode::flags`: the mode is for a recording being played, which is not a networked game
@@ -434,6 +436,50 @@ pub struct W2rOrderRequest {
     pub units: [W2rUnitRef; W2R_MAX_ORDER_UNITS],
 }
 
+// ---- HTTP -----------------------------------------------------------------------------------
+pub const W2R_HTTP_GET: u32 = 0;
+pub const W2R_HTTP_POST: u32 = 1;
+/// `W2rEvtHttp::error`: an answer came back; see `status`
+pub const W2R_HTTP_OK: u32 = 0;
+/// no answer: could not connect, timed out, redirected or aborted
+pub const W2R_HTTP_FAILED: u32 = 1;
+/// the answer was longer than `W2R_MAX_HTTP_RESPONSE`
+pub const W2R_HTTP_TOO_LARGE: u32 = 2;
+pub const W2R_MAX_HTTP_URL: u32 = 512;
+pub const W2R_MAX_HTTP_BODY: u32 = 16384;
+pub const W2R_MAX_HTTP_RESPONSE: u32 = 262_144;
+pub const W2R_MAX_HTTP_IN_FLIGHT: u32 = 4;
+
+/// What `http_request` sends.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rHttpRequest {
+    pub struct_size: u32,
+    /// chosen by the plugin; comes back in the answer
+    pub id: u32,
+    /// `W2R_HTTP_GET` or `W2R_HTTP_POST`
+    pub method: u32,
+    /// `https://host/path?query`, host from the manifest's `net_hosts`
+    pub url: W2rStr,
+    /// POST only; empty means `application/json`
+    pub content_type: W2rStr,
+    /// POST only
+    pub body: W2rBuf,
+}
+
+/// Payload of `W2R_EVT_HTTP_RESPONSE`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rEvtHttp {
+    pub struct_size: u32,
+    pub id: u32,
+    /// the HTTP status, or 0 when `error` is not `W2R_HTTP_OK`
+    pub status: u32,
+    pub error: u32,
+    /// valid only during the callback
+    pub body: W2rBuf,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct W2rHost {
@@ -624,6 +670,11 @@ pub struct W2rHost {
     /// Gives an order to up to 12 of the local player's own units as if clicked (through the
     /// game's command queue). Needs `game.control`. docs/abi.md, "Units and orders".
     pub order_issue: unsafe extern "C" fn(token: *mut c_void, request: *const W2rOrderRequest) -> W2rStatus,
+
+    // Appended after `order_issue`: check `struct_size >= W2R_HOST_HTTP_SIZE`.
+    /// Sends an HTTPS request to a server named in the manifest's `net_hosts`; the answer arrives
+    /// as `W2R_EVT_HTTP_RESPONSE` with the same id. Needs `net.http`. docs/abi.md, "HTTP".
+    pub http_request: unsafe extern "C" fn(token: *mut c_void, request: *const W2rHttpRequest) -> W2rStatus,
 }
 
 // ---- overlay --------------------------------------------------------------------------------
@@ -921,6 +972,20 @@ pub unsafe fn order_issue(host: *const W2rHost, request: &W2rOrderRequest) -> W2
     unsafe { (h.order_issue)(h.token, request) }
 }
 
+/// Sends a request on a host that has `http_request`; `W2R_E_UNSUPPORTED` on an older one.
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn http_request(host: *const W2rHost, request: &W2rHttpRequest) -> W2rStatus {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return W2R_E_INVALID;
+    };
+    if h.struct_size < W2R_HOST_HTTP_SIZE {
+        return W2R_E_UNSUPPORTED;
+    }
+    unsafe { (h.http_request)(h.token, request) }
+}
+
 // ---- plugin table: returned by the plugin --------------------------------------------------
 /// Callbacks are `Option` because a plugin may leave any of them NULL; the host checks
 /// `on_load` is present (`E_ENTRY` otherwise) and skips the others when absent.
@@ -982,7 +1047,11 @@ pub const W2R_HOST_UNITS_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, units_query) + core::mem::size_of::<usize>()) as u32;
 
 /// `struct_size` of a host that has `order_issue` (and everything before it).
-pub const W2R_HOST_ORDER_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_ORDER_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, order_issue) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `http_request` (and everything before it).
+pub const W2R_HOST_HTTP_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -1025,7 +1094,7 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 136);
+        assert_eq!(size_of::<W2rHost>(), 140);
         assert_eq!(size_of::<W2rOverlayItem>(), 24);
         assert_eq!(W2R_HOST_OVERLAY_SIZE, 108);
         assert_eq!(W2R_HOST_SET_CHOICES_SIZE, 112);
@@ -1047,7 +1116,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 264);
+        assert_eq!(size_of::<W2rHost>(), 272);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

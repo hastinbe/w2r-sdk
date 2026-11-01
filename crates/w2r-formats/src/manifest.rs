@@ -6,13 +6,14 @@ use crate::json::{self, Value};
 use crate::semver::{Version, VersionReq};
 
 pub const MAX_BYTES: usize = 64 * 1024;
-pub const CAPABILITIES: [&str; 6] = [
+pub const CAPABILITIES: [&str; 7] = [
     "game.read",
     "chat.read",
     "chat.write",
     "net.send",
     "hooks.raw",
     "game.control",
+    "net.http",
 ];
 const FIELDS: [&str; 12] = [
     "schema",
@@ -29,7 +30,7 @@ const FIELDS: [&str; 12] = [
     "dependencies",
 ];
 /// Allowed but not required (docs/manifest.md).
-const OPTIONAL_FIELDS: [&str; 1] = ["replaces"];
+const OPTIONAL_FIELDS: [&str; 2] = ["replaces", "net_hosts"];
 
 /// A reason code from docs/manifest.md, or `"ok"`.
 pub type Reason = &'static str;
@@ -123,6 +124,8 @@ pub struct Manifest {
     /// Plugins this one supersedes (`replaces`; empty when absent). Same shape as a dependency:
     /// an id and the versions of it that are replaced.
     pub replaces: Vec<Dependency>,
+    /// The servers a plugin with `net.http` may talk to (`net_hosts`; empty without `net.http`).
+    pub net_hosts: Vec<String>,
 }
 
 impl Manifest {
@@ -166,7 +169,8 @@ pub fn is_valid_id(s: &str) -> bool {
 /// The entry suffix of a Lua script plugin (docs/lua-plugins.md); anything else is a DLL.
 pub const SCRIPT_SUFFIX: &str = ".lua";
 /// The capabilities a script plugin may ask for: it has no way to use the others.
-pub const SCRIPT_CAPABILITIES: &[&str] = &["chat.read", "chat.write", "game.read", "game.control"];
+pub const SCRIPT_CAPABILITIES: &[&str] =
+    &["chat.read", "chat.write", "game.read", "game.control", "net.http"];
 
 /// `[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll|lua)`, no `..`, stem not a device name.
 fn is_valid_entry(s: &str) -> bool {
@@ -266,6 +270,49 @@ fn replaces(v: &Value, own_id: &str, deps: &[Dependency]) -> Result<Vec<Dependen
     Ok(list)
 }
 
+/// A host name a plugin may be given leave to contact: lowercase DNS labels of `a-z`, `0-9` and
+/// `-`, at least two of them, each 1 to 63 bytes and neither starting nor ending with `-`, at most
+/// 253 bytes in all, and a last label with a letter in it (so an IP address never qualifies).
+pub fn is_valid_net_host(s: &str) -> bool {
+    if s.is_empty() || s.len() > 253 {
+        return false;
+    }
+    let labels: Vec<&str> = s.split('.').collect();
+    labels.len() >= 2
+        && labels.iter().all(|l| {
+            (1..=63).contains(&l.len())
+                && !l.starts_with('-')
+                && !l.ends_with('-')
+                && l.bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        })
+        && labels
+            .last()
+            .is_some_and(|l| l.bytes().any(|b| b.is_ascii_lowercase()))
+}
+
+/// The optional `net_hosts` list: 1 to 4 distinct valid host names, and only with `net.http`
+/// (which in turn needs it): `bad_net_hosts` for any mismatch, `bad_type` when it is not a list.
+fn net_hosts(doc: &Value, capabilities: &[String]) -> Result<Vec<String>, Reason> {
+    let wants = capabilities.iter().any(|c| c == "net.http");
+    let Some(v) = doc.get("net_hosts") else {
+        return if wants { Err("bad_net_hosts") } else { Ok(Vec::new()) };
+    };
+    let items = v.as_array().ok_or("bad_type")?;
+    if !wants || items.is_empty() || items.len() > 4 {
+        return Err("bad_net_hosts");
+    }
+    let mut out: Vec<String> = Vec::new();
+    for item in items {
+        let host = item.as_str().filter(|h| is_valid_net_host(h)).ok_or("bad_net_hosts")?;
+        if out.iter().any(|h| h == host) {
+            return Err("bad_net_hosts");
+        }
+        out.push(host.to_owned());
+    }
+    Ok(out)
+}
+
 /// Validates raw `plugin.json` bytes. `Err` carries the reason code.
 pub fn validate(raw: &[u8]) -> Result<Manifest, Reason> {
     if raw.len() > MAX_BYTES {
@@ -325,6 +372,7 @@ pub fn validate(raw: &[u8]) -> Result<Manifest, Reason> {
         Some(v) => replaces(v, &id, &dependencies)?,
         None => Vec::new(),
     };
+    let net_hosts = net_hosts(&doc, &capabilities)?;
 
     Ok(Manifest {
         id,
@@ -340,6 +388,7 @@ pub fn validate(raw: &[u8]) -> Result<Manifest, Reason> {
         affects_simulation,
         dependencies,
         replaces,
+        net_hosts,
     })
 }
 
@@ -396,6 +445,7 @@ mod tests {
         assert_eq!(m.entry, "example_plugin.dll");
         assert!(m.affects_simulation);
         assert_eq!(m.capabilities, CAPABILITIES);
+        assert_eq!(m.net_hosts, vec!["api.example.com".to_owned()]);
         assert_eq!(m.game_builds.len(), 2);
         assert!(m.supports_build(Build::parse("1.0.2.2818").unwrap()));
         assert!(m.supports_build(Build::parse("1.0.3.0").unwrap()));

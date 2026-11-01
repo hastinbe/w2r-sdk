@@ -61,6 +61,7 @@ Implicit capabilities need no approval: `log`, `settings`, `ui`, `fs.data`.
 | `subscribe`, `unsubscribe` | per event | see Events; unknown ids return `W2R_E_NOT_FOUND` |
 | `symbol_lookup`, `symbol_read` | `game.read` | symbol name at most 64 bytes; the handle is valid for the session; at most 4,096 bytes per read; a read that faults returns `W2R_E_INVALID` and never crashes the game |
 | `chat_send` | `chat.write` | at most 200 bytes of printable ASCII; at most 4 per 5 s per plugin; only when the game's chat is available: in a lobby it goes through the lobby's chat box, in a match as a public line to every other player (recorded in replays like a typed line). Not while only watching or in a replay |
+| `http_request` | `net.http` | HTTPS to the servers the manifest's `net_hosts` names; the answer arrives as `W2R_EVT_HTTP_RESPONSE` (see HTTP) |
 | `units_query` | `game.read` | the units the local player may know about (see Units and orders); at most 256 per call |
 | `order_issue` | `game.control` | an order for up to 12 of the local player's own units, through the game's command queue (see Units and orders) |
 | `peer_send` | `net.send` | payload 1 to 960 bytes (`W2R_E_INVALID` empty, `W2R_E_LIMIT` over); at most 32 messages/s per plugin and 128/s overall (`W2R_E_RATE`); lobby only, with the session connected (`W2R_E_STATE`); the target slot (0-7, else `W2R_E_INVALID`) must have announced the handshake, or `W2R_SLOT_ALL` for every such peer; no announced peer is `W2R_E_STATE` |
@@ -452,3 +453,30 @@ need a target unit. Spells, building and producing are not available.
 A plugin that gives orders changes what its player does, so the lobby host may want to forbid it
 for fair games. The host's cog popup on the lobby screen switches it off for everyone in the lobby,
 like the mod's other player aids. Orders given in a recording playback are refused.
+
+## HTTP
+
+`http_request(token, request)` (appended; check `struct_size >= W2R_HOST_HTTP_SIZE`; needs the
+`net.http` capability) lets a plugin talk to a web service. It exists so that plugins can fetch
+data, post results or reach their own server, and it is deliberately narrow:
+
+- **Only the servers the manifest names.** `plugin.json` lists them in `net_hosts` (see
+  manifest.md). The install prompt shows them ("Connects to"), so the player knows where the plugin
+  can send anything, and a plugin that wants another server needs a new version and a new approval.
+  The URL's host must be written exactly as one of those names; an IP address, `localhost`, a
+  subdomain that is not listed, a user name (`user@host`) or a fragment is refused.
+- **https on port 443 only**, no redirects (a redirect could lead to a server the player did not
+  approve; a redirected request reports `W2R_HTTP_FAILED`), no cookies, no headers except a POST's
+  content type (printable ASCII, at most 64 bytes; empty means `application/json`).
+- **Sizes and rates.** URL at most 512 bytes, request body at most 16 KiB, answer at most 256 KiB
+  (`W2R_HTTP_TOO_LARGE` past that). At most 4 requests in flight per plugin (`W2R_E_LIMIT`) and
+  8 in all, and 30 a minute per plugin (`W2R_E_RATE`).
+- **Asynchronous.** The call returns at once. The answer is delivered on the main thread as
+  `W2R_EVT_HTTP_RESPONSE` with the `id` the plugin chose, without subscribing: `status` is the HTTP
+  status (any status, including 404 and 500, is an answer) or 0 with `error` set when there was
+  none. The body is valid only during the callback, so copy it.
+- `W2R_E_INVALID` is returned for a bad URL, a host not in `net_hosts`, a bad method, a body on a
+  GET, an oversized body, or an `id` that is already in flight.
+
+The host never adds anything about the player to a request. What a plugin sends is up to the
+plugin, so install only plugins you trust with the servers they name.

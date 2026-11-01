@@ -54,7 +54,8 @@
     "chat.write",
     "net.send",
     "hooks.raw",
-    "game.control"
+    "game.control",
+    "net.http"
    ],
    "dependencies": [
     {
@@ -70,6 +71,9 @@
    ],
    "id": "example-plugin",
    "name": "Example Plugin",
+   "net_hosts": [
+    "api.example.com"
+   ],
    "schema": 1,
    "version": "2.0.0-beta.1"
   },
@@ -731,6 +735,430 @@
    "version": "1.2.0"
   },
   "name": "lua_game_control_ok"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "api.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_ok"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "a.example.com",
+    "b.example.com",
+    "c.example.org",
+    "d-e.example.net"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_four_ok"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_http_without_hosts"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "api.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_without_http"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_empty"
+ },
+ {
+  "expect": "bad_type",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": "api.example.com",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_not_list"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "a.example.com",
+    "b.example.com",
+    "c.example.com",
+    "d.example.com",
+    "e.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_too_many"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "api.example.com",
+    "api.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_duplicate"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "API.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_uppercase"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "192.168.0.1"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_ip_address"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "localhost"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_single_label"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "https://api.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_with_scheme"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "api.example.com:8443"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_with_port"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "*.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_wildcard"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "-a.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_leading_hyphen"
+ },
+ {
+  "expect": "bad_net_hosts",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    5
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "net_hosts_not_string"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "net.http"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "main.lua",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "net_hosts": [
+    "api.example.com"
+   ],
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "lua_net_http_ok"
  },
  {
   "expect": "ok",

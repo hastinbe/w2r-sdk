@@ -38,7 +38,7 @@ The rules below are normative; `tools/w2r_spec/manifest.py` is the executable re
 
 ## Fields
 
-Twelve fields are required and one is optional (`replaces`, below). No other fields are allowed.
+Twelve fields are required and two are optional (`replaces` and `net_hosts`, below). No other fields are allowed.
 
 | Field | Type | Rule | Reason code |
 |---|---|---|---|
@@ -51,11 +51,12 @@ Twelve fields are required and one is optional (`replaces`, below). No other fie
 | `entry` | string | `[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll\|lua)`, no `..`, stem not a Windows device name; a `.lua` entry makes the plugin a script plugin, with the extra rules below | `bad_entry` |
 | `abi` | integer | 1 to 4,294,967,295; the minimum ABI version the plugin needs | `bad_abi` |
 | `game_builds` | array | 1 to 16 entries, each `a.b.c.d` or an inclusive range `a.b.c.d-w.x.y.z` | `bad_build`, `bad_type` |
-| `capabilities` | array | duplicate-free subset of `game.read`, `chat.read`, `chat.write`, `net.send`, `hooks.raw`, `game.control` | `bad_capability`, `bad_type` |
+| `capabilities` | array | duplicate-free subset of `game.read`, `chat.read`, `chat.write`, `net.send`, `hooks.raw`, `game.control`, `net.http` | `bad_capability`, `bad_type` |
 | `affects_simulation` | boolean | must be a JSON boolean (`1` is refused) | `bad_type` |
 | `dependencies` | array | at most 16 objects, see below | `bad_dependency`, `bad_type` |
 | `replaces` | array | optional; same entries as `dependencies`, see below | `bad_replaces`, `bad_type` |
-| (script) | | a `.lua` entry with `affects_simulation: true`, or with a capability other than `chat.read` / `chat.write`, is refused; checked after `affects_simulation` | `bad_script` |
+| `net_hosts` | array | optional; 1 to 4 distinct host names, present exactly when `capabilities` holds `net.http`, see below | `bad_net_hosts`, `bad_type` |
+| (script) | | a `.lua` entry with `affects_simulation: true`, or with a capability other than `chat.read`, `chat.write`, `game.read`, `game.control` or `net.http`, is refused; checked after `affects_simulation` | `bad_script` |
 
 Notes:
 
@@ -80,6 +81,14 @@ Notes:
   rule (device names included), is not the plugin's own id and does not repeat. `version_req` is 1
   to 4 comparators `(>=|<=|>|<|=)MAJOR.MINOR.PATCH` joined by `,` with no spaces, for example
   `>=1.0.0,<2.0.0`; numbers have no leading zeros and are at most 4,294,967,295.
+- **`net_hosts`** (optional) names the servers a plugin with `net.http` may contact (abi.md,
+  "HTTP"). It must be present, as an array of 1 to 4 distinct names, exactly when `capabilities`
+  holds `net.http`: a plugin that asks to reach the internet must say where, and a list without the
+  capability is a mistake; either mismatch, a bad name or a duplicate is `bad_net_hosts` (`bad_type`
+  if it is not an array). A name is lowercase DNS labels of `a-z`, `0-9` and `-` (not starting or
+  ending with `-`), at least two labels, each 1 to 63 bytes, at most 253 bytes in all, with a letter
+  in the last label so an IP address never qualifies; no scheme, port, path or wildcard. The install
+  prompt shows the names. It is checked last, after `replaces`.
 - **`replaces`** (optional, absent means none) lists plugins this one supersedes, for a rename, a
   merge or a successor. Entries have the same shape and rules as `dependencies` (`id`,
   `version_req`, at most 16, no repeats, not the plugin's own id), and an id may not appear in both
@@ -104,7 +113,7 @@ then each field in the order of the table above (`bad_script` after `affects_sim
 | `duplicate_key` | an object repeats a key |
 | `not_object` | top level is not an object |
 | `unknown_field` / `missing_field` | a required field is missing or one outside the thirteen is present |
-| `bad_schema`, `bad_id`, `bad_version`, `bad_entry`, `bad_abi`, `bad_build`, `bad_capability`, `bad_dependency`, `bad_replaces` | that field violates its rule |
+| `bad_schema`, `bad_id`, `bad_version`, `bad_entry`, `bad_abi`, `bad_build`, `bad_capability`, `bad_dependency`, `bad_replaces`, `bad_net_hosts` | that field violates its rule |
 | `bad_script` | a `.lua` entry asks for a capability a script cannot use, or `affects_simulation: true` |
 | `bad_type` | wrong JSON type for a container or boolean field |
 | `bad_string` | empty, or contains a control character |
