@@ -116,10 +116,9 @@ Install the mod itself first: run the **W2R Mod Loader** app from the
 [releases page](https://github.com/hastinbe/w2r-mod-loader/releases) and click **Install the mod**.
 Start the game once so the `w2r` folder exists.
 
-Install your own build the same way a player installs a published one, with a package and a small
-local index. The host only loads a plugin whose DLL hash and capabilities are recorded by the
-manager, so copying a DLL into the plugins folder by hand does not work; going through the manager
-records them for you.
+Install your own build with the manager. The host only loads a plugin whose DLL hash and capabilities
+are recorded by the manager, so copying a DLL into the plugins folder by hand does not work; going
+through the manager records them for you.
 
 1. **Close the game.** Plugins cannot be changed while it runs.
 2. In `w2r-plugins`, package every plugin you built:
@@ -128,27 +127,33 @@ records them for you.
    cargo run -p w2r-publish -- package --target-dir target/i686-pc-windows-msvc/release --out out/packages
    ```
 
-3. Make an index for those packages. The URL template is never contacted (the files are read from
-   the folder); it only has to be a valid `https` address:
+3. Install the package file (`out/packages/<id>-<version>.zip`) from a file. In the Mod Loader app, use
+   **Install from file...** on the Installed tab or drop the zip on the window. A native plugin needs
+   **Allow native plugins (DLLs) from files** switched on in Settings first. On the command line:
+
+   ```
+   w2r-loader allow-native-files on
+   w2r-loader install-file out\packages\<your-plugin-id>-<version>.zip
+   ```
+
+   It shows the plugin's capabilities and asks you to approve them, as for any plugin. A plugin that
+   asks for `hooks.raw` also needs `--allow-hooks-raw` (and `--yes` to skip the questions). See
+   [sharing-plugins.md](sharing-plugins.md) for what a plugin installed from a file may and may not do.
+
+   If your plugin has the id of one that is already published (you are improving it), a file install
+   is refused. Use a local index instead:
 
    ```
    cargo run -p w2r-publish -- index --packages out/packages --url-template "https://example.invalid/{name}.zip" --out out/packages/index.json
+   w2r-loader --index-dir out\packages install <your-plugin-id>
    ```
 
-4. Install from that folder with the mod loader's `w2r-loader` command line tool (`--index-dir` is a
-   development switch and is not listed in `--help`):
+   (`--index-dir` is a development switch and is not listed in `--help`.)
 
-   ```
-   w2r-loader --index-dir ..\w2r-plugins\out\packages install <your-plugin-id>
-   ```
-
-   It prints the plugin's capabilities and asks you to approve them, exactly as the app does. A plugin
-   that asks for `hooks.raw` also needs `--allow-hooks-raw` (and `--yes` to skip the questions).
-
-5. Start the game. The plugin is enabled after install. Switch it off and on in the Mod Loader's
+4. Start the game. The plugin is enabled after install. Switch it off and on in the Mod Loader's
    **Installed** tab, or with `w2r-loader disable <id>` and `w2r-loader enable <id>`.
 
-To try a change: bump nothing, just rebuild, repackage, and install again with the same command. The
+To try a change: bump nothing, just rebuild, repackage, and install again the same way. The
 manager treats it as a reinstall of the same version and replaces the files. (A *published* version
 is immutable, but your local installs are your own.)
 
