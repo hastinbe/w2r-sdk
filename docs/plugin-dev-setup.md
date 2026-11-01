@@ -60,17 +60,17 @@ usual choice.
 ## 2. Get the code
 
 Fork [`w2r-plugins`](https://github.com/hastinbe/w2r-plugins) on GitHub (you will open pull requests
-from your fork), then clone your fork. Clone the mod loader next to it:
+from your fork), then clone your fork. Clone the SDK next to it:
 
 ```
 mkdir w2r
 cd w2r
 git clone https://github.com/<you>/w2r-plugins
-git clone https://github.com/hastinbe/w2r-mod-loader
+git clone https://github.com/hastinbe/w2r-sdk
 ```
 
-Keep the two folders side by side. The mod loader repository gives you the ABI header and docs and
-builds the `w2r-loader` command line tool used in section 4. The plugin repository is where your
+Keep the two folders side by side. The SDK repository gives you the ABI header, the format parsers and
+these docs. The plugin repository is where your
 plugin lives, in `plugins/<id>/`. Start a branch for it: `git switch -c plugin/<id>`.
 
 ## 3. Build and test
@@ -93,17 +93,18 @@ decisions in plain Rust functions and test those; the `extern "C"` callbacks sho
 [`plugins/w2r-random-map`](https://github.com/hastinbe/w2r-plugins/tree/main/plugins/w2r-random-map)
 is a good one to copy: it needs no capabilities.
 
-### Building against your own copy of the mod loader
+### Building against your own copy of the SDK
 
-`w2r-plugins` pins the ABI crates to a fixed commit of the mod loader, so a build does not change
+`w2r-plugins` pins the ABI crates to a fixed commit of the SDK, so a build does not change
 underneath you. If you are changing the ABI itself, or want the newest host features before the pin
 moves, create the untracked file `w2r-plugins\.cargo\config.toml`:
 
 ```toml
-[patch."https://github.com/hastinbe/w2r-mod-loader"]
-w2r-abi = { path = "../w2r-mod-loader/crates/w2r-abi" }
-w2r-formats = { path = "../w2r-mod-loader/crates/w2r-formats" }
-w2r-loader-lib = { path = "../w2r-mod-loader/crates/w2r-loader-lib" }
+paths = [
+    "../w2r-sdk/crates/w2r-abi",
+    "../w2r-sdk/crates/w2r-formats",
+    "../w2r-sdk/crates/w2r-preview",
+]
 ```
 
 Never commit that file. `CONTRIBUTING.md` explains the `Cargo.lock` side effect and the
@@ -134,11 +135,11 @@ records them for you.
    cargo run -p w2r-publish -- index --packages out/packages --url-template "https://example.invalid/{name}.zip" --out out/packages/index.json
    ```
 
-4. In `w2r-mod-loader`, install from that folder (`--index-dir` is a development switch and is not
-   listed in `--help`):
+4. Install from that folder with the mod loader's `w2r-loader` command line tool (`--index-dir` is a
+   development switch and is not listed in `--help`):
 
    ```
-   cargo run -p w2r-loader-cli -- --index-dir ..\w2r-plugins\out\packages install <your-plugin-id>
+   w2r-loader --index-dir ..\w2r-plugins\out\packages install <your-plugin-id>
    ```
 
    It prints the plugin's capabilities and asks you to approve them, exactly as the app does. A plugin

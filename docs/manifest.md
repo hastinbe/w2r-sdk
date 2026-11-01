@@ -1,7 +1,7 @@
 # Plugin manifest (`plugin.json`)
 
 Every plugin ships a `plugin.json` next to its entry, a DLL or, for a script plugin
-([lua-plugins.md](lua-plugins.md)), a `.lua` file (see [layout.md](layout.md)). The manager
+(lua-plugins.md), a `.lua` file (see [layout.md](layout.md)). The manager
 validates it at install and the host validates it again at load ([load-policy.md](load-policy.md)).
 The rules below are normative; `tools/w2r_spec/manifest.py` is the executable reference and
 `docs/vectors/manifest.json` holds the test vectors.
@@ -66,7 +66,7 @@ Notes:
   forms, a leading dot, `..` and Windows device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9`,
   `LPT1`-`LPT9`, case-insensitive, with any extension) are refused. The suffix is exact and
   lowercase: `main.LUA`, `main.luac` and `main.lua.txt` are `bad_entry`.
-- **Script plugins** ([lua-plugins.md](lua-plugins.md)): for a `.lua` entry, `abi` is the script
+- **Script plugins** (lua-plugins.md): for a `.lua` entry, `abi` is the script
   API version rather than the C ABI version, `capabilities` may hold only `chat.read` and
   `chat.write`, and `affects_simulation` must be `false`; a manifest that breaks either of the
   last two is `bad_script`. An unknown capability on a script is still `bad_capability`, and a

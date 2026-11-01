@@ -113,7 +113,7 @@ And one after `color_edit` (`ui->struct_size >= W2R_UI_COMBO_SIZE`):
 
 Appended after `create_map_folder` (`host->struct_size >= W2R_HOST_SETTINGS_DECLARE_SIZE`; an
 older host has a smaller table). Implicit, no capability. The options screen
-([settings-screen.md](settings-screen.md)) shows every setting the game, the host and the plugins
+(settings-screen.md) shows every setting the game, the host and the plugins
 have in one place: categories down the left, the selected category's settings on the right grouped
 under subcategory headings, a search page, and the description on hover. A plugin puts its own
 settings there by declaring them.
@@ -267,7 +267,7 @@ Plugins send through `peer_send`; the host builds the envelope:
 - Subsystems `'H'`, `'M'` and `'L'` belong to the first-party handshake, map-sharing and
   lobby-settings features, which are compiled into the host rather than shipped as plugins: the
   handshake's roster is the host's own policy input and its fingerprint covers what the host
-  loaded, so no plugin could provide it ([peer-protocol.md](peer-protocol.md)). `'P'` is the only
+  loaded, so no plugin could provide it (peer-protocol.md). `'P'` is the only
   subsystem third-party plugins use.
 - A whole message is at most 969 bytes, below the game's 989-byte limit for its reliable channel.
   Messages are removed from the stream before the game sees them, and the host never sends
