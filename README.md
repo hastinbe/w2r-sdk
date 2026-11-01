@@ -10,6 +10,7 @@ What you need to write a plugin for the W2R Mod Loader (Warcraft II Remastered),
 - `docs/`: [abi.md](docs/abi.md), [manifest.md](docs/manifest.md), [index.md](docs/index.md),
   [plugin-dev-setup.md](docs/plugin-dev-setup.md), and `docs/vectors/` (test vectors both the Rust
   and the Python reference implementations must pass).
+- `examples/`: a small script plugin that uses the plugin API (`lua-readout`).
 - `tools/`: the Python reference implementation of the manifest and index rules (`w2r_spec`), the
   vector generators and the ABI header check.
 

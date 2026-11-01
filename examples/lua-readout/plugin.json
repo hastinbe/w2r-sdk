@@ -1,0 +1,1 @@
+{"schema":1,"id":"example-readout","name":"Readout (example)","version":"1.0.0","author":"W2R SDK","description":"Example script plugin: your resources and the match clock at the top of the screen, a hotkey and a chat command.","entry":"main.lua","abi":1,"game_builds":["1.0.2.2818"],"capabilities":["game.read"],"affects_simulation":false,"dependencies":[]}
