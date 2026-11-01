@@ -355,3 +355,38 @@ for the local player's own match end, not for a replay being watched.
 
 It costs a handful of memory reads; calling it once per second is fine, once per frame is not
 needed. There is no event for changes.
+
+## Hotkeys and commands
+
+Two host functions, appended to the table (check `struct_size >= W2R_HOST_HOTKEY_SIZE` and
+`W2R_HOST_COMMAND_SIZE`). Neither needs a capability, because the host decides what a plugin may
+claim and the plugin only learns about the one key or command it asked for.
+
+**`hotkey_register(token, combo, id)`** registers a key combination such as `"Ctrl+Alt+K"`,
+`"Alt+F5"` or `"Ctrl+Shift+Insert"` (modifiers `Ctrl`, `Shift`, `Alt`; keys A to Z, 0 to 9, F1 to
+F12, `Insert`, `Delete`, `Home`, `End`, `PageUp`, `PageDown`, the arrows, `Space`, `Tab`,
+`Backtick`, `Minus`, `Equals`, `Comma`, `Period`, `Slash`; any case). When the game window has focus
+and exactly those modifiers are down and the key goes down, the plugin gets `W2R_EVT_HOTKEY` with
+`W2rEvtHotkey.id`, once per press, without subscribing.
+
+- It must include Ctrl or Alt, or be an F key, so a hotkey never fires while someone types text.
+- `W2R_E_INVALID`: not a combination, or no Ctrl/Alt and not an F key.
+- `W2R_E_CONFLICT`: the host or the game uses it, or another plugin holds it. Reserved:
+  `Alt+F`, `Alt+G`, `Alt+C`, `Ctrl+Shift+N`, `Ctrl+Shift+K`, `Ctrl+A/C/V/X/Z/Y`, `Alt+F4`,
+  `Alt+Tab`, `Alt+0` to `Alt+9`, `F1`, `F10`, `F11`, `F12`.
+- `W2R_E_LIMIT`: more than 8 hotkeys. A disabled plugin gives its keys up.
+
+**`command_register(token, name, id)`** registers the chat command `/name`: 1 to 16 of `a-z`,
+`0-9` and `-`, starting with a letter. When the player types it in the lobby or in a match chat
+box, the line is taken from the box and not sent, and the plugin gets `W2R_EVT_COMMAND` with
+`W2rEvtCommand.id` and `args`, the text after the name, trimmed, printable ASCII, at most 200
+bytes. The name is matched case-insensitively.
+
+- `W2R_E_INVALID`: not a valid name.
+- `W2R_E_CONFLICT`: the host or the game uses it (`plugins`, `share`, `ignore`, `unignore`,
+  `squelch`, `unsquelch`, `obs`, `g`, `w`, `r`, `reply`, `whisper`, `invite`, `report`, `away`,
+  `dnd`, `me`, `mute`, `unmute`, `friend`, `unfriend`, `kick`, `ban`, `unban`, `help`, `motd`,
+  `mod`, `gift`, `email`, `all`, `allies`, `team`) or another plugin holds it.
+- `W2R_E_LIMIT`: more than 8 commands. Commands do not work in the Community chat tabs.
+
+Registering the same combination or name with the same id twice is not an error.

@@ -102,6 +102,10 @@ pub const W2R_EVT_SETTINGS_CHANGED: W2rEventId = 9;
 pub const W2R_EVT_SHUTDOWN: W2rEventId = 10;
 /// payload W2rEvtGameMode; the lobby's game mode for the next match
 pub const W2R_EVT_GAME_MODE: W2rEventId = 11;
+/// payload W2rEvtHotkey; sent to the plugin that registered the key
+pub const W2R_EVT_HOTKEY: W2rEventId = 12;
+/// payload W2rEvtCommand; sent to the plugin that registered the command
+pub const W2R_EVT_COMMAND: W2rEventId = 13;
 /// `W2rEvtGameMode::flags`: the Classic Balance mode is on
 pub const W2R_GAME_MODE_CLASSIC_BALANCE: u32 = 1 << 0;
 /// `W2rEvtGameMode::flags`: the mode is for a recording being played, which is not a networked game
@@ -188,6 +192,26 @@ pub struct W2rEvtMatchEnd {
     /// `size_of::<W2rMatchPlayer>()` in the host: step by this
     pub player_size: u32,
     pub players: *const W2rMatchPlayer,
+}
+
+/// Payload of `W2R_EVT_HOTKEY`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rEvtHotkey {
+    pub struct_size: u32,
+    /// the id given to `hotkey_register`
+    pub id: u32,
+}
+
+/// Payload of `W2R_EVT_COMMAND`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rEvtCommand {
+    pub struct_size: u32,
+    /// the id given to `command_register`
+    pub id: u32,
+    /// the text after `/name `, trimmed; printable ASCII, at most 200 bytes
+    pub args: W2rStr,
 }
 
 #[repr(C)]
@@ -480,6 +504,18 @@ pub struct W2rHost {
     /// unless they are on the local player's team, the local player observes, or a recording plays.
     /// `W2R_E_STATE` outside a match. docs/abi.md, "Game snapshot".
     pub game_snapshot: unsafe extern "C" fn(token: *mut c_void, out: *mut W2rGameSnapshot) -> W2rStatus,
+
+    // Appended after `game_snapshot`: check `struct_size >= W2R_HOST_HOTKEY_SIZE`.
+    /// Asks for a key combination such as `"Ctrl+Alt+K"`; the plugin gets `W2R_EVT_HOTKEY` with `id`
+    /// when it is pressed. `W2R_E_INVALID`, `W2R_E_CONFLICT` or `W2R_E_LIMIT` otherwise.
+    /// docs/abi.md, "Hotkeys and commands".
+    pub hotkey_register: unsafe extern "C" fn(token: *mut c_void, combo: W2rStr, id: u32) -> W2rStatus,
+
+    // Appended after `hotkey_register`: check `struct_size >= W2R_HOST_COMMAND_SIZE`.
+    /// Asks for the chat command `/name`; the plugin gets `W2R_EVT_COMMAND` with `id` and the
+    /// arguments when the player types it, and the line is not sent. docs/abi.md, "Hotkeys and
+    /// commands".
+    pub command_register: unsafe extern "C" fn(token: *mut c_void, name: W2rStr, id: u32) -> W2rStatus,
 }
 
 // ---- overlay --------------------------------------------------------------------------------
@@ -685,6 +721,43 @@ pub unsafe fn game_snapshot(host: *const W2rHost, out: &mut W2rGameSnapshot) -> 
     unsafe { (h.game_snapshot)(h.token, out) }
 }
 
+/// Registers a hotkey on a host that has `hotkey_register`; `W2R_E_UNSUPPORTED` on an older one.
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn hotkey_register(host: *const W2rHost, combo: &str, id: u32) -> W2rStatus {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return W2R_E_INVALID;
+    };
+    if h.struct_size < W2R_HOST_HOTKEY_SIZE {
+        return W2R_E_UNSUPPORTED;
+    }
+    let combo = W2rStr {
+        ptr: combo.as_ptr().cast(),
+        len: combo.len() as u32,
+    };
+    unsafe { (h.hotkey_register)(h.token, combo, id) }
+}
+
+/// Registers a chat command on a host that has `command_register`; `W2R_E_UNSUPPORTED` on an
+/// older one.
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn command_register(host: *const W2rHost, name: &str, id: u32) -> W2rStatus {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return W2R_E_INVALID;
+    };
+    if h.struct_size < W2R_HOST_COMMAND_SIZE {
+        return W2R_E_UNSUPPORTED;
+    }
+    let name = W2rStr {
+        ptr: name.as_ptr().cast(),
+        len: name.len() as u32,
+    };
+    unsafe { (h.command_register)(h.token, name, id) }
+}
+
 // ---- plugin table: returned by the plugin --------------------------------------------------
 /// Callbacks are `Option` because a plugin may leave any of them NULL; the host checks
 /// `on_load` is present (`E_ENTRY` otherwise) and skips the others when absent.
@@ -726,7 +799,15 @@ pub const W2R_HOST_SET_CHOICES_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, settings_set_choices) + core::mem::size_of::<usize>()) as u32;
 
 /// `struct_size` of a host that has `game_snapshot` (and everything before it).
-pub const W2R_HOST_SNAPSHOT_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_SNAPSHOT_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, game_snapshot) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `hotkey_register` (and everything before it).
+pub const W2R_HOST_HOTKEY_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, hotkey_register) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `command_register` (and everything before it).
+pub const W2R_HOST_COMMAND_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -769,7 +850,7 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 116);
+        assert_eq!(size_of::<W2rHost>(), 124);
         assert_eq!(size_of::<W2rOverlayItem>(), 24);
         assert_eq!(W2R_HOST_OVERLAY_SIZE, 108);
         assert_eq!(W2R_HOST_SET_CHOICES_SIZE, 112);
@@ -791,7 +872,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 224);
+        assert_eq!(size_of::<W2rHost>(), 240);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

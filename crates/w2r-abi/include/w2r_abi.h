@@ -89,7 +89,9 @@ enum {
     W2R_EVT_MATCH_END = 8,          /* payload W2rEvtMatchEnd (added later; NULL from an older host) */
     W2R_EVT_SETTINGS_CHANGED = 9,
     W2R_EVT_SHUTDOWN = 10,
-    W2R_EVT_GAME_MODE = 11          /* payload W2rEvtGameMode; the lobby's game mode for the next match */
+    W2R_EVT_GAME_MODE = 11,         /* payload W2rEvtGameMode; the lobby's game mode for the next match */
+    W2R_EVT_HOTKEY = 12,            /* payload W2rEvtHotkey; sent to the plugin that registered the key */
+    W2R_EVT_COMMAND = 13            /* payload W2rEvtCommand; sent to the plugin that registered the command */
 };
 
 typedef struct W2rEvent {
@@ -116,6 +118,17 @@ typedef struct W2rEvtPeerMessage {
     uint32_t net_slot; /* the slot the transport reported, never one named inside the message */
     W2rBuf data;       /* the payload after the 9-byte header */
 } W2rEvtPeerMessage;
+
+typedef struct W2rEvtHotkey {
+    uint32_t struct_size;
+    uint32_t id; /* the id given to hotkey_register */
+} W2rEvtHotkey;
+
+typedef struct W2rEvtCommand {
+    uint32_t struct_size;
+    uint32_t id;    /* the id given to command_register */
+    W2rStr args;    /* the text after "/name ", trimmed; printable ASCII, at most 200 bytes */
+} W2rEvtCommand;
 
 enum {
     W2R_GAME_MODE_CLASSIC_BALANCE = 1u << 0,
@@ -369,6 +382,24 @@ typedef struct W2rHost {
        see what the game itself hides. W2R_E_STATE outside a match.
        */
     W2rStatus (W2R_CALL *game_snapshot)(void *token, W2rGameSnapshot *out);
+
+    /* Appended after game_snapshot: check host->struct_size >= W2R_HOST_HOTKEY_SIZE.
+       Asks for a key combination such as "Ctrl+Alt+K", "Alt+F5" or "Ctrl+Shift+Insert". When it is
+       pressed (exactly those modifiers, the game window focused) the plugin gets W2R_EVT_HOTKEY with
+       `id`, without subscribing. The combination must include Ctrl or Alt or be an F key.
+       W2R_E_INVALID: not a combination or not allowed; W2R_E_CONFLICT: the host, the game or
+       another plugin holds it; W2R_E_LIMIT: more than 8. No capability is needed.
+       */
+    W2rStatus (W2R_CALL *hotkey_register)(void *token, W2rStr combo, uint32_t id);
+
+    /* Appended after hotkey_register: check host->struct_size >= W2R_HOST_COMMAND_SIZE.
+       Asks for the chat command `/name` (1 to 16 of a-z, 0-9 and '-', starting with a letter). When
+       the player types it in the lobby or in a match, the line is taken from the chat box (not
+       sent) and the plugin gets W2R_EVT_COMMAND with `id` and the text after the name, without
+       subscribing. W2R_E_INVALID: not a valid name; W2R_E_CONFLICT: the host, the game or another
+       plugin uses it; W2R_E_LIMIT: more than 8. No capability is needed.
+       */
+    W2rStatus (W2R_CALL *command_register)(void *token, W2rStr name, uint32_t id);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -377,6 +408,8 @@ typedef struct W2rHost {
 #define W2R_HOST_OVERLAY_SIZE (offsetof(W2rHost, overlay_set) + sizeof(void *))
 #define W2R_HOST_SET_CHOICES_SIZE (offsetof(W2rHost, settings_set_choices) + sizeof(void *))
 #define W2R_HOST_SNAPSHOT_SIZE (offsetof(W2rHost, game_snapshot) + sizeof(void *))
+#define W2R_HOST_HOTKEY_SIZE (offsetof(W2rHost, hotkey_register) + sizeof(void *))
+#define W2R_HOST_COMMAND_SIZE (offsetof(W2rHost, command_register) + sizeof(void *))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {
