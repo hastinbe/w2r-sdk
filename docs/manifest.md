@@ -51,7 +51,7 @@ Twelve fields are required and one is optional (`replaces`, below). No other fie
 | `entry` | string | `[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll\|lua)`, no `..`, stem not a Windows device name; a `.lua` entry makes the plugin a script plugin, with the extra rules below | `bad_entry` |
 | `abi` | integer | 1 to 4,294,967,295; the minimum ABI version the plugin needs | `bad_abi` |
 | `game_builds` | array | 1 to 16 entries, each `a.b.c.d` or an inclusive range `a.b.c.d-w.x.y.z` | `bad_build`, `bad_type` |
-| `capabilities` | array | duplicate-free subset of `game.read`, `chat.read`, `chat.write`, `net.send`, `hooks.raw` | `bad_capability`, `bad_type` |
+| `capabilities` | array | duplicate-free subset of `game.read`, `chat.read`, `chat.write`, `net.send`, `hooks.raw`, `game.control` | `bad_capability`, `bad_type` |
 | `affects_simulation` | boolean | must be a JSON boolean (`1` is refused) | `bad_type` |
 | `dependencies` | array | at most 16 objects, see below | `bad_dependency`, `bad_type` |
 | `replaces` | array | optional; same entries as `dependencies`, see below | `bad_replaces`, `bad_type` |
@@ -67,7 +67,7 @@ Notes:
   `LPT1`-`LPT9`, case-insensitive, with any extension) are refused. The suffix is exact and
   lowercase: `main.LUA`, `main.luac` and `main.lua.txt` are `bad_entry`.
 - **Script plugins** (lua-plugins.md): for a `.lua` entry, `abi` is the script
-  API version rather than the C ABI version, `capabilities` may hold only `chat.read`, `game.read` and
+  API version rather than the C ABI version, `capabilities` may hold only `chat.read`, `game.read`, `game.control` and
   `chat.write`, and `affects_simulation` must be `false`; a manifest that breaks either of the
   last two is `bad_script`. An unknown capability on a script is still `bad_capability`, and a
   non-boolean `affects_simulation` still `bad_type` (those checks come first).

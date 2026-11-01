@@ -53,7 +53,8 @@
     "chat.read",
     "chat.write",
     "net.send",
-    "hooks.raw"
+    "hooks.raw",
+    "game.control"
    ],
    "dependencies": [
     {
@@ -707,6 +708,29 @@
    "version": "1.2.0"
   },
   "name": "lua_net_send_denied"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "game.control"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "main.lua",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "lua_game_control_ok"
  },
  {
   "expect": "ok",

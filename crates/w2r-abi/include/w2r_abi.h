@@ -304,6 +304,59 @@ enum {
 #define W2R_MAX_HUD_KEY 32u
 #define W2R_MAX_HUD_TEXT 64u
 
+/* ---- units and orders (units_query, order_issue; docs/abi.md, "Units and orders") ----------- */
+enum {
+    W2R_UNIT_BUILDING = 1u << 0,
+    W2R_UNIT_WORKER = 1u << 1,
+    W2R_UNIT_SELECTED = 1u << 2,  /* in the local player's current selection */
+    W2R_UNIT_FINISHED = 1u << 3,  /* a building that is completed (not under construction) */
+    W2R_UNIT_IDLE = 1u << 4       /* its order is stop or stand and it is not carrying one out */
+};
+typedef struct W2rUnit {
+    uint32_t id;       /* index in the game's unit array; slots are reused, so keep the serial too */
+    uint32_t serial;   /* creation serial: (id, serial) names one unit for ever */
+    uint32_t type;     /* the game's unit type id */
+    uint32_t owner;    /* player index 0 to 7; 15 is neutral (mines, critters) */
+    uint32_t order;    /* current order id (W2R_ORDER_*, others as the game numbers them) */
+    uint32_t flags;    /* W2R_UNIT_* */
+    int32_t tile_x;
+    int32_t tile_y;
+    uint32_t hp;       /* hit points */
+    uint32_t mana;     /* the game's mana byte; for a building under construction its progress, 0 to 255 */
+} W2rUnit;
+typedef struct W2rUnitQuery {
+    uint32_t struct_size;  /* sizeof(W2rUnitQuery) */
+    uint32_t owners;       /* bit n selects player n, bit 15 neutral; 0 means any owner */
+    uint32_t type;         /* a unit type id, or W2R_NONE for any */
+    uint32_t flags_all;    /* the unit must have all of these W2R_UNIT_* flags */
+    uint32_t flags_none;   /* and none of these */
+} W2rUnitQuery;
+enum {
+    W2R_ORDER_STOP = 2,
+    W2R_ORDER_MOVE = 3,
+    W2R_ORDER_PATROL = 5,
+    W2R_ORDER_FOLLOW = 6,
+    W2R_ORDER_ATTACK = 8,       /* with a target unit: attack it; else attack-move to the tile */
+    W2R_ORDER_STAND = 13,       /* stand ground */
+    W2R_ORDER_HARVEST = 23,
+    W2R_ORDER_RETURN = 24,
+    W2R_ORDER_REPAIR = 27
+};
+#define W2R_MAX_ORDER_UNITS 12u  /* the game's selection limit */
+typedef struct W2rUnitRef {
+    uint32_t id;
+    uint32_t serial;
+} W2rUnitRef;
+typedef struct W2rOrderRequest {
+    uint32_t struct_size;    /* sizeof(W2rOrderRequest) */
+    uint32_t order;          /* W2R_ORDER_* */
+    int32_t tile_x;          /* where, when there is no target unit */
+    int32_t tile_y;
+    W2rUnitRef target;       /* id == W2R_NONE: no target unit */
+    uint32_t unit_count;     /* 1 to W2R_MAX_ORDER_UNITS */
+    W2rUnitRef units[W2R_MAX_ORDER_UNITS];
+} W2rOrderRequest;
+
 typedef struct W2rHost {
     uint32_t struct_size; /* check before using any field past the version you built against */
     uint32_t abi_version;
@@ -420,6 +473,27 @@ typedef struct W2rHost {
        No capability is needed.
        */
     W2rStatus (W2R_CALL *hud_text_set)(void *token, W2rStr key, W2rStr text, uint32_t place);
+
+    /* Appended after hud_text_set: check host->struct_size >= W2R_HOST_UNITS_SIZE.
+       Lists units into `out[0..cap]` and stores the number that matched in `*total` (which may
+       be more than `cap`, at most 256 are ever returned). Requires `game.read`. Only units the local
+       player may know about are listed: its own, and those the game shows it (not hidden by the fog),
+       or everything when the local player only watches or a recording plays. W2R_E_STATE outside a
+       match.
+       */
+    W2rStatus (W2R_CALL *units_query)(void *token, const W2rUnitQuery *query, W2rUnit *out,
+                                       uint32_t cap, uint32_t *total);
+
+    /* Appended after units_query: check host->struct_size >= W2R_HOST_ORDER_SIZE.
+       Gives an order to up to 12 of the local player's own units, exactly as if the player had
+       selected them and clicked: it goes through the game's command queue, so every machine and the
+       replay see it. The player's selection is put back afterwards. Requires `game.control`.
+       W2R_E_INVALID: a unit that is not named correctly, not yours or not alive, or an order not in
+       W2R_ORDER_*; W2R_E_DENIED: no permission, or the lobby's host switched plugin orders off;
+       W2R_E_STATE: not in a match, only watching, or a recording is playing; W2R_E_RATE: more than
+       8 orders in a second from this plugin.
+       */
+    W2rStatus (W2R_CALL *order_issue)(void *token, const W2rOrderRequest *request);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -431,6 +505,8 @@ typedef struct W2rHost {
 #define W2R_HOST_HOTKEY_SIZE (offsetof(W2rHost, hotkey_register) + sizeof(void *))
 #define W2R_HOST_COMMAND_SIZE (offsetof(W2rHost, command_register) + sizeof(void *))
 #define W2R_HOST_HUD_TEXT_SIZE (offsetof(W2rHost, hud_text_set) + sizeof(void *))
+#define W2R_HOST_UNITS_SIZE (offsetof(W2rHost, units_query) + sizeof(void *))
+#define W2R_HOST_ORDER_SIZE (offsetof(W2rHost, order_issue) + sizeof(void *))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {

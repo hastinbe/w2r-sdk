@@ -359,6 +359,81 @@ pub const W2R_MAX_HUD_LINES: u32 = 4;
 pub const W2R_MAX_HUD_KEY: u32 = 32;
 pub const W2R_MAX_HUD_TEXT: u32 = 64;
 
+// ---- units and orders -----------------------------------------------------------------------
+/// `W2rUnit::flags`
+pub const W2R_UNIT_BUILDING: u32 = 1 << 0;
+pub const W2R_UNIT_WORKER: u32 = 1 << 1;
+/// in the local player's current selection
+pub const W2R_UNIT_SELECTED: u32 = 1 << 2;
+/// a building that is completed
+pub const W2R_UNIT_FINISHED: u32 = 1 << 3;
+/// its order is stop or stand
+pub const W2R_UNIT_IDLE: u32 = 1 << 4;
+
+/// One unit as `units_query` reports it.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct W2rUnit {
+    pub id: u32,
+    pub serial: u32,
+    pub type_id: u32,
+    pub owner: u32,
+    pub order: u32,
+    pub flags: u32,
+    pub tile_x: i32,
+    pub tile_y: i32,
+    pub hp: u32,
+    pub mana: u32,
+}
+
+/// What `units_query` looks for.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rUnitQuery {
+    pub struct_size: u32,
+    /// bit n selects player n, bit 15 neutral; 0 means any owner
+    pub owners: u32,
+    /// a unit type id, or `W2R_NONE` for any
+    pub type_id: u32,
+    pub flags_all: u32,
+    pub flags_none: u32,
+}
+
+pub const W2R_ORDER_STOP: u32 = 2;
+pub const W2R_ORDER_MOVE: u32 = 3;
+pub const W2R_ORDER_PATROL: u32 = 5;
+pub const W2R_ORDER_FOLLOW: u32 = 6;
+/// with a target unit: attack it; otherwise attack-move to the tile
+pub const W2R_ORDER_ATTACK: u32 = 8;
+/// stand ground
+pub const W2R_ORDER_STAND: u32 = 13;
+pub const W2R_ORDER_HARVEST: u32 = 23;
+pub const W2R_ORDER_RETURN: u32 = 24;
+pub const W2R_ORDER_REPAIR: u32 = 27;
+/// the game's selection limit
+pub const W2R_MAX_ORDER_UNITS: usize = 12;
+
+/// A unit named by slot and creation serial.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct W2rUnitRef {
+    pub id: u32,
+    pub serial: u32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rOrderRequest {
+    pub struct_size: u32,
+    pub order: u32,
+    pub tile_x: i32,
+    pub tile_y: i32,
+    /// `id == W2R_NONE`: no target unit
+    pub target: W2rUnitRef,
+    pub unit_count: u32,
+    pub units: [W2rUnitRef; W2R_MAX_ORDER_UNITS],
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct W2rHost {
@@ -533,6 +608,22 @@ pub struct W2rHost {
     /// Sets (or, with empty `text`, removes) one line of the plugin's HUD text at `place`
     /// (`W2R_HUD_*`). docs/abi.md, "HUD text".
     pub hud_text_set: unsafe extern "C" fn(token: *mut c_void, key: W2rStr, text: W2rStr, place: u32) -> W2rStatus,
+
+    // Appended after `hud_text_set`: check `struct_size >= W2R_HOST_UNITS_SIZE`.
+    /// Lists the units the local player may know about that match `query` into `out[..cap]` and
+    /// stores the match count in `*total`. Needs `game.read`. docs/abi.md, "Units and orders".
+    pub units_query: unsafe extern "C" fn(
+        token: *mut c_void,
+        query: *const W2rUnitQuery,
+        out: *mut W2rUnit,
+        cap: u32,
+        total: *mut u32,
+    ) -> W2rStatus,
+
+    // Appended after `units_query`: check `struct_size >= W2R_HOST_ORDER_SIZE`.
+    /// Gives an order to up to 12 of the local player's own units as if clicked (through the
+    /// game's command queue). Needs `game.control`. docs/abi.md, "Units and orders".
+    pub order_issue: unsafe extern "C" fn(token: *mut c_void, request: *const W2rOrderRequest) -> W2rStatus,
 }
 
 // ---- overlay --------------------------------------------------------------------------------
@@ -794,6 +885,42 @@ pub unsafe fn hud_text_set(host: *const W2rHost, key: &str, text: &str, place: u
     unsafe { (h.hud_text_set)(h.token, s(key), s(text), place) }
 }
 
+/// Lists matching units on a host that has `units_query`; `W2R_E_UNSUPPORTED` on an older one.
+/// Returns the status and how many units matched (which may exceed `out.len()`).
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn units_query(
+    host: *const W2rHost,
+    query: &W2rUnitQuery,
+    out: &mut [W2rUnit],
+) -> (W2rStatus, u32) {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return (W2R_E_INVALID, 0);
+    };
+    if h.struct_size < W2R_HOST_UNITS_SIZE {
+        return (W2R_E_UNSUPPORTED, 0);
+    }
+    let mut total = 0u32;
+    let status =
+        unsafe { (h.units_query)(h.token, query, out.as_mut_ptr(), out.len() as u32, &mut total) };
+    (status, total)
+}
+
+/// Gives an order on a host that has `order_issue`; `W2R_E_UNSUPPORTED` on an older one.
+///
+/// # Safety
+/// `host` must be the pointer the host passed to `on_load`.
+pub unsafe fn order_issue(host: *const W2rHost, request: &W2rOrderRequest) -> W2rStatus {
+    let Some(h) = (unsafe { host.as_ref() }) else {
+        return W2R_E_INVALID;
+    };
+    if h.struct_size < W2R_HOST_ORDER_SIZE {
+        return W2R_E_UNSUPPORTED;
+    }
+    unsafe { (h.order_issue)(h.token, request) }
+}
+
 // ---- plugin table: returned by the plugin --------------------------------------------------
 /// Callbacks are `Option` because a plugin may leave any of them NULL; the host checks
 /// `on_load` is present (`E_ENTRY` otherwise) and skips the others when absent.
@@ -847,7 +974,15 @@ pub const W2R_HOST_COMMAND_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, command_register) + core::mem::size_of::<usize>()) as u32;
 
 /// `struct_size` of a host that has `hud_text_set` (and everything before it).
-pub const W2R_HOST_HUD_TEXT_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_HUD_TEXT_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, hud_text_set) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `units_query` (and everything before it).
+pub const W2R_HOST_UNITS_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, units_query) + core::mem::size_of::<usize>()) as u32;
+
+/// `struct_size` of a host that has `order_issue` (and everything before it).
+pub const W2R_HOST_ORDER_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -890,7 +1025,7 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 128);
+        assert_eq!(size_of::<W2rHost>(), 136);
         assert_eq!(size_of::<W2rOverlayItem>(), 24);
         assert_eq!(W2R_HOST_OVERLAY_SIZE, 108);
         assert_eq!(W2R_HOST_SET_CHOICES_SIZE, 112);
@@ -912,7 +1047,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 248);
+        assert_eq!(size_of::<W2rHost>(), 264);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

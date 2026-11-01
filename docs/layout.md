@@ -100,6 +100,7 @@ Require user approval at install; re-asked whenever an update adds one:
 | `chat.write` | send chat messages as the local player |
 | `net.send` | send plugin-namespaced peer messages through the host |
 | `hooks.raw` | install raw code hooks / patches (shown as **dangerous**) |
+| `game.control` | give orders to your own units, as if you had clicked (`order_issue`) |
 
 `affects_simulation: true` is not a capability but is always shown prominently, and such plugins
 are included in the lobby compatibility hash.

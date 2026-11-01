@@ -26,7 +26,7 @@ OBJECT_CASES = [
     ("valid_minimal", "ok", mut(capabilities=[], dependencies=[], version="0.0.1", id="ab0")),
     ("valid_full", "ok", mut(
         version="2.0.0-beta.1", game_builds=["1.0.2.2818", "1.0.2.2900-1.0.3.100"],
-        capabilities=["game.read", "chat.read", "chat.write", "net.send", "hooks.raw"],
+        capabilities=["game.read", "chat.read", "chat.write", "net.send", "hooks.raw", "game.control"],
         affects_simulation=True, dependencies=[DEP])),
     ("schema_2", "bad_schema", mut(schema=2)),
     ("schema_string", "bad_schema", mut(schema="1")),
@@ -57,6 +57,7 @@ OBJECT_CASES = [
     ("lua_entry_chat_read_ok", "ok", mut(entry="main.lua", capabilities=["chat.read", "chat.write"], affects_simulation=False)),
     ("lua_game_read_ok", "ok", mut(entry="main.lua", capabilities=["game.read"], affects_simulation=False)),
     ("lua_net_send_denied", "bad_script", mut(entry="main.lua", capabilities=["net.send"], affects_simulation=False)),
+    ("lua_game_control_ok", "ok", mut(entry="main.lua", capabilities=["game.read", "game.control"], affects_simulation=False)),
     ("lua_entry_max_length", "ok", mut(entry="a" * 60 + ".lua", capabilities=[], affects_simulation=False)),
     ("lua_entry_too_long", "bad_entry", mut(entry="a" * 61 + ".lua", capabilities=[], affects_simulation=False)),
     ("lua_entry_uppercase_ext", "bad_entry", mut(entry="main.LUA", capabilities=[], affects_simulation=False)),

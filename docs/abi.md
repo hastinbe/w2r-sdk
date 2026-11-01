@@ -61,6 +61,8 @@ Implicit capabilities need no approval: `log`, `settings`, `ui`, `fs.data`.
 | `subscribe`, `unsubscribe` | per event | see Events; unknown ids return `W2R_E_NOT_FOUND` |
 | `symbol_lookup`, `symbol_read` | `game.read` | symbol name at most 64 bytes; the handle is valid for the session; at most 4,096 bytes per read; a read that faults returns `W2R_E_INVALID` and never crashes the game |
 | `chat_send` | `chat.write` | at most 200 bytes of printable ASCII; at most 4 per 5 s per plugin; only when the game's chat is available: in a lobby it goes through the lobby's chat box, in a match as a public line to every other player (recorded in replays like a typed line). Not while only watching or in a replay |
+| `units_query` | `game.read` | the units the local player may know about (see Units and orders); at most 256 per call |
+| `order_issue` | `game.control` | an order for up to 12 of the local player's own units, through the game's command queue (see Units and orders) |
 | `peer_send` | `net.send` | payload 1 to 960 bytes (`W2R_E_INVALID` empty, `W2R_E_LIMIT` over); at most 32 messages/s per plugin and 128/s overall (`W2R_E_RATE`); lobby only, with the session connected (`W2R_E_STATE`); the target slot (0-7, else `W2R_E_INVALID`) must have announced the handshake, or `W2R_SLOT_ALL` for every such peer; no announced peer is `W2R_E_STATE` |
 | `symbol_address` | `hooks.raw` (shown as **dangerous**) | the runtime address (image base plus the symbol's RVA) of any symbol, function or global, always inside the game module; `W2R_E_NOT_FOUND` for a bad handle; the handle still comes from `symbol_lookup`, which needs `game.read`, so a plugin that calls game functions or writes game memory declares both. The address makes every later access the plugin's own, outside the host's guard |
 | `hook_install`, `hook_remove` | `hooks.raw` (shown as **dangerous**) | `target` is a `symbol_lookup` handle of a function symbol (`W2R_E_NOT_FOUND` for a bad handle, `W2R_E_INVALID` for a global), so a hook is always inside the game module's code; `original_out` receives the trampoline before the hook goes live; no overlap with any host patch or other hook (`W2R_E_CONFLICT`); at most 64 hooks per plugin |
@@ -409,3 +411,44 @@ A plugin has at most 4 lines in all places together (`W2R_E_LIMIT` for a fifth);
 plugins at one place are stacked in the order they were first set. Nothing is drawn outside a match
 or while a recording plays, and a disabled plugin's lines are removed. Lua plugins use the same
 store through `w2r.hud.text` (see the mod loader's `lua-plugins.md`).
+
+## Units and orders
+
+`units_query` and `order_issue` are appended to the host table (check `struct_size >=
+W2R_HOST_UNITS_SIZE` and `W2R_HOST_ORDER_SIZE`). `game.control` is a new capability, shown in the
+install prompt as giving orders to your units as if you had clicked, because a plugin that holds it
+can automate play.
+
+**`units_query(token, query, out, cap, total)`** (needs `game.read`) fills `out[0..cap]` with units
+matching `W2rUnitQuery` and stores in `*total` how many matched (at most 256 are ever returned).
+`owners` is a bit mask of players (bit 15 is neutral: gold mines, critters); 0 means any. `type` is
+the game's unit type id or `W2R_NONE`. `flags_all` and `flags_none` select by `W2R_UNIT_BUILDING`,
+`_WORKER`, `_SELECTED` (in the local player's selection), `_FINISHED` (a completed building) and
+`_IDLE` (a unit whose order is stop or stand ground). Each `W2rUnit` has the slot `id`, the creation
+`serial`, type, owner, current order, position in tiles, hit points and the mana byte (a building
+under construction keeps its progress there).
+
+- **What is listed.** Only units the local player may know about: its own, and those the game does
+  not hide from it (the fog), so a plugin sees what the minimap would. When the local player only
+  watches, or a recording plays, everything is listed. `W2R_E_STATE` outside a match.
+- **Naming a unit.** Slots are reused at once when a unit dies, so `(id, serial)` together name
+  one unit for ever; keep both.
+
+**`order_issue(token, request)`** (needs `game.control`) gives an order to up to 12 of the local
+player's own living units, exactly as if the player had selected them and clicked: it goes through
+the game's command queue, so every machine in a networked game and the replay see it. The player's
+selection is put back afterwards. The orders are `W2R_ORDER_STOP` (2), `_MOVE` (3), `_PATROL` (5),
+`_FOLLOW` (6), `_ATTACK` (8; with a target unit attacks it, else attack-move to the tile), `_STAND`
+(13, stand ground), `_HARVEST` (23), `_RETURN` (24) and `_REPAIR` (27). Follow, harvest and repair
+need a target unit. Spells, building and producing are not available.
+
+- `W2R_E_INVALID`: an order not in the list; a unit that is not named correctly (wrong serial), not
+  alive, not the local player's, or named twice; a target that is not seen; no units or more than 12.
+- `W2R_E_DENIED`: `game.control` was not approved, or the lobby's host switched plugin orders off
+  (lobby capability "Plugin-given orders", `plugin_orders`).
+- `W2R_E_STATE`: not in a match, or the local player only watches, or a recording plays.
+- `W2R_E_RATE`: more than 8 orders in a second from this plugin; the call had no effect.
+
+A plugin that gives orders changes what its player does, so the lobby host may want to forbid it
+for fair games. The host's cog popup on the lobby screen switches it off for everyone in the lobby,
+like the mod's other player aids. Orders given in a recording playback are refused.

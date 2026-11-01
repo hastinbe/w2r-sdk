@@ -6,12 +6,13 @@ use crate::json::{self, Value};
 use crate::semver::{Version, VersionReq};
 
 pub const MAX_BYTES: usize = 64 * 1024;
-pub const CAPABILITIES: [&str; 5] = [
+pub const CAPABILITIES: [&str; 6] = [
     "game.read",
     "chat.read",
     "chat.write",
     "net.send",
     "hooks.raw",
+    "game.control",
 ];
 const FIELDS: [&str; 12] = [
     "schema",
@@ -165,7 +166,7 @@ pub fn is_valid_id(s: &str) -> bool {
 /// The entry suffix of a Lua script plugin (docs/lua-plugins.md); anything else is a DLL.
 pub const SCRIPT_SUFFIX: &str = ".lua";
 /// The capabilities a script plugin may ask for: it has no way to use the others.
-pub const SCRIPT_CAPABILITIES: &[&str] = &["chat.read", "chat.write", "game.read"];
+pub const SCRIPT_CAPABILITIES: &[&str] = &["chat.read", "chat.write", "game.read", "game.control"];
 
 /// `[A-Za-z0-9_][A-Za-z0-9_.-]{0,59}\.(dll|lua)`, no `..`, stem not a device name.
 fn is_valid_entry(s: &str) -> bool {
