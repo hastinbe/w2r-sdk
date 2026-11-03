@@ -26,7 +26,7 @@ functions it provides; it cannot stop a plugin from using the operating system d
 | `W2R_E_UNSUPPORTED` -5 | the host knows the function but cannot do it |
 | `W2R_E_NOT_FOUND` -6 | no such symbol, handle or event |
 | `W2R_E_RATE` -7 | rate limit hit; the call had no effect |
-| `W2R_E_CONFLICT` -8 | the hook overlaps an existing patch |
+| `W2R_E_CONFLICT` -8 | the hook overlaps part of an existing patch or of a hook that starts at another address |
 | `W2R_E_BUSY` -9 | not ready yet, ask again on a later frame |
 
 ## Loading and versioning
@@ -66,7 +66,7 @@ Implicit capabilities need no approval: `log`, `settings`, `ui`, `fs.data`.
 | `order_issue` | `game.control` | an order for up to 12 of the local player's own units, through the game's command queue (see Units and orders) |
 | `peer_send` | `net.send` | payload 1 to 960 bytes (`W2R_E_INVALID` empty, `W2R_E_LIMIT` over); at most 32 messages/s per plugin and 128/s overall (`W2R_E_RATE`); lobby only, with the session connected (`W2R_E_STATE`); the target slot (0-7, else `W2R_E_INVALID`) must have announced the handshake, or `W2R_SLOT_ALL` for every such peer; no announced peer is `W2R_E_STATE` |
 | `symbol_address` | `hooks.raw` (shown as **dangerous**) | the runtime address (image base plus the symbol's RVA) of any symbol, function or global, always inside the game module; `W2R_E_NOT_FOUND` for a bad handle; the handle still comes from `symbol_lookup`, which needs `game.read`, so a plugin that calls game functions or writes game memory declares both. The address makes every later access the plugin's own, outside the host's guard |
-| `hook_install`, `hook_remove` | `hooks.raw` (shown as **dangerous**) | `target` is a `symbol_lookup` handle of a function symbol (`W2R_E_NOT_FOUND` for a bad handle, `W2R_E_INVALID` for a global), so a hook is always inside the game module's code; `original_out` receives the trampoline before the hook goes live; no overlap with any host patch or other hook (`W2R_E_CONFLICT`); at most 64 hooks per plugin |
+| `hook_install`, `hook_remove` | `hooks.raw` (shown as **dangerous**) | `target` is a `symbol_lookup` handle of a function symbol (`W2R_E_NOT_FOUND` for a bad handle, `W2R_E_INVALID` for a global), so a hook is always inside the game module's code; `original_out` receives the function to call to continue before the hook goes live; a hook on a function other hooks already sit on joins their **chain** (below); no partial overlap with any host patch or hook at another address (`W2R_E_CONFLICT`); at most 64 hooks per plugin |
 
 The UI (`W2rUi`) is passed to `on_ui` and is valid only inside that call. It offers `label`,
 `button`, `checkbox` and `slider_int`; each call draws one row in the plugin's card in the plugin
@@ -285,6 +285,13 @@ Plugins send through `peer_send`; the host builds the envelope:
   `std::panic::catch_unwind` inside it. A caught fault abandons the Rust frames between the
   handler and the faulting instruction without running destructors, so the guard owns no state
   that needs cleanup. Stack overflow is not recoverable.
+- **Hooks on the same function chain.** Any number of hooks, the host's and plugins', may sit on one
+  game function. The newest is outermost: the game calls its detour first, and its `original_out` leads
+  to the next older detour (through a stub with the real function's calling convention), and the oldest
+  one's leads to the game's code. Every detour must call its `original` to let the others, and the game,
+  run; a detour that does not, cuts off every hook older than itself. A plugin that is disabled or
+  unloaded leaves the chain without affecting the others. Patches that are not hooks (byte patches the
+  host reserves) still conflict, and so do hooks that start at different addresses within 19 bytes.
 - **Hook detours are outside this guard.** A detour installed with `hook_install` is called by the
   game, on whatever thread the game uses, not by the host. The host cannot wrap it, and the
   main-thread rule does not apply to it: a detour must be thread-safe and must not call host
