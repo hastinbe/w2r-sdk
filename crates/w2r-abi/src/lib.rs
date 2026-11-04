@@ -108,6 +108,11 @@ pub const W2R_EVT_HOTKEY: W2rEventId = 12;
 pub const W2R_EVT_COMMAND: W2rEventId = 13;
 /// payload W2rEvtHttp; sent to the plugin that made the request
 pub const W2R_EVT_HTTP_RESPONSE: W2rEventId = 14;
+/// payload W2rEvtHotkeyAction: a key the plugin offered with `hotkey_offer` went down or up (only
+/// while a hotkey manager is active, `hotkeys_managed`)
+pub const W2R_EVT_HOTKEY_ACTION: W2rEventId = 15;
+/// payload W2rEvtKey: the key the manager asked for with `key_capture`
+pub const W2R_EVT_KEY_CAPTURED: W2rEventId = 16;
 /// `W2rEvtGameMode::flags`: the Classic Balance mode is on
 pub const W2R_GAME_MODE_CLASSIC_BALANCE: u32 = 1 << 0;
 /// `W2rEvtGameMode::flags`: the mode is for a recording being played, which is not a networked game
@@ -223,6 +228,217 @@ pub struct W2rEvtGameMode {
     /// `W2R_GAME_MODE_*`: the modes in force for the next match, on every machine
     pub flags: u32,
 }
+
+// ---- hotkeys (docs/abi.md, "Hotkeys") ------------------------------------------------------
+/// A key: the SDL scancode (layout independent: `W2R_KEY_*` names a few) in the low 16 bits, and
+/// the modifiers that must be held, exactly. 0 is no key.
+pub type W2rKey = u32;
+pub const W2R_KEY_SHIFT: W2rKey = 1 << 16;
+pub const W2R_KEY_CTRL: W2rKey = 1 << 17;
+pub const W2R_KEY_ALT: W2rKey = 1 << 18;
+/// The scancode part of a `W2rKey`.
+pub const W2R_KEY_CODE_MASK: W2rKey = 0xFFFF;
+pub const W2R_KEY_A: W2rKey = 4;
+pub const W2R_KEY_P: W2rKey = 19;
+pub const W2R_KEY_GRAVE: W2rKey = 53;
+pub const W2R_KEY_F1: W2rKey = 58;
+
+/// `W2rHotkeyDef.flags`: the game sees the key too (by default a hotkey the service delivers is
+/// kept from the game).
+pub const W2R_HOTKEY_PASS: u32 = 1;
+/// `W2rHotkeyDef.flags`: not while a command waits for its target, nor just after a command key
+/// (a multicast holds Alt between spells).
+pub const W2R_HOTKEY_SAFE_CAST: u32 = 2;
+/// Hotkey flag: the plugin reads the key itself (its own hook or polling);
+/// the service only keeps the binding, never fires `W2R_EVT_HOTKEY_ACTION` or keeps the key from the game.
+/// Read it with `hotkey_get`.
+pub const W2R_HOTKEY_POLL: u32 = 4;
+
+/// One action a plugin offers for the hotkey manager's screen, as `hotkey_offer` takes it.
+/// Every string is copied during the call.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rHotkeyDef {
+    /// `W2R_HOTKEY_DEF_V1_SIZE`.
+    pub struct_size: u32,
+    /// `W2R_HOTKEY_PASS`, `W2R_HOTKEY_SAFE_CAST` or 0.
+    pub flags: u32,
+    /// The key the action has until a manager binds another; 0 for none.
+    pub default_key: W2rKey,
+    /// A second key, or 0.
+    pub default_alt: W2rKey,
+    /// Unique within the plugin, the settings-key rule (`[a-z0-9_.]`, 1-64 bytes).
+    pub id: W2rStr,
+    /// What the manager's screen shows. 1 to 64 bytes, Title Case.
+    pub label: W2rStr,
+    /// The manager's heading for it; empty uses the plugin's name.
+    pub category: W2rStr,
+}
+pub const W2R_HOTKEY_DEF_V1_SIZE: u32 = core::mem::size_of::<W2rHotkeyDef>() as u32;
+
+/// `W2R_EVT_HOTKEY_ACTION`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rEvtHotkeyAction {
+    pub struct_size: u32,
+    /// The handle `hotkey_offer` gave.
+    pub action: W2rHandle,
+    /// 1 when the key went down, 0 when it was let go. Key repeat is not delivered.
+    pub down: u32,
+}
+
+/// `W2R_EVT_KEY_CAPTURED`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rEvtKey {
+    pub struct_size: u32,
+    /// The key and the modifiers held with it; Esc alone is `41`.
+    pub key: W2rKey,
+}
+
+/// What `hotkey_info` reports about one registered action. The strings point into the host's
+/// copy and stay valid until the next `hotkey_info` call.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rHotkeyInfo {
+    pub struct_size: u32,
+    pub flags: u32,
+    /// The bound keys now, and the plugin's defaults.
+    pub key: W2rKey,
+    pub alt: W2rKey,
+    pub default_key: W2rKey,
+    pub default_alt: W2rKey,
+    /// The owning plugin's id and name.
+    pub plugin: W2rStr,
+    pub plugin_name: W2rStr,
+    pub id: W2rStr,
+    pub label: W2rStr,
+    pub category: W2rStr,
+}
+pub const W2R_HOTKEY_INFO_V1_SIZE: u32 = core::mem::size_of::<W2rHotkeyInfo>() as u32;
+
+/// `W2rRemap.flags`: while a command waits for its target, or just after a command key, the key
+/// is kept from the game instead (the Alt menu keys during a multicast).
+pub const W2R_REMAP_SAFE_CAST: u32 = 1;
+
+/// One entry of `key_remap_set`: pressing `from` gives the game `to`. `to` 0 keeps `from` from the
+/// game; `to == from` with `W2R_REMAP_SAFE_CAST` only adds the safety.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct W2rRemap {
+    pub from: W2rKey,
+    pub to: W2rKey,
+    pub flags: u32,
+    /// Only while this command card (the game's button set index) is up; `W2R_ANY_CARD` always.
+    pub card: u32,
+}
+
+/// `W2rRemap.card`: whatever card is up.
+pub const W2R_ANY_CARD: u32 = 0xFFFF_FFFF;
+
+// ---- plugin screen (only valid inside the screen callback) ---------------------------------
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct W2rRect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+/// `W2rScreen.frame` styles.
+pub const W2R_FRAME_WINDOW: u32 = 0;
+pub const W2R_FRAME_PANEL: u32 = 1;
+/// The game's title scroll (the art of the menus' title banner), stretched to the rect.
+pub const W2R_FRAME_BANNER: u32 = 2;
+/// The game's checkbox, off or ticked (with `W2R_FRAME_ORC` for the Orc art); lit under the mouse.
+pub const W2R_FRAME_CHECK: u32 = 3;
+pub const W2R_FRAME_CHECK_ON: u32 = 4;
+/// The game's scroll bar track and its thumb (with `W2R_FRAME_ORC` for the Orc art); lit under the mouse,
+/// and the thumb pressed with `W2R_FRAME_ACTIVE` (while it is dragged).
+pub const W2R_FRAME_SCROLL: u32 = 5;
+pub const W2R_FRAME_SCROLL_THUMB: u32 = 6;
+pub const W2R_FRAME_ACTIVE: u32 = 0x200;
+/// `W2rScreen.icons` bit: the game is in Classic graphics (the page draws the Classic look).
+pub const W2R_SCREEN_CLASSIC: u32 = 2;
+/// `W2rScreen.frame` / `button`: draw in the Orc skin instead of the Human one.
+pub const W2R_FRAME_ORC: u32 = 0x100;
+/// `W2rScreen.button` flags.
+pub const W2R_BUTTON_GREYED: u32 = 1;
+/// `W2rScreen.button` flag: the Orc Game Menu button (Human without it).
+pub const W2R_BUTTON_ORC: u32 = 2;
+/// `W2rScreen.icon` flags.
+pub const W2R_ICON_SELECTED: u32 = 1;
+/// `W2rScreen.icon` flag: the icon belongs to the Orc side (off a match the menus paint team parts in
+/// the game's first team colour, red, for both sides).
+pub const W2R_ICON_ORC: u32 = 2;
+/// `W2rScreen.label` alignment.
+pub const W2R_ALIGN_LEFT: u32 = 0x11;
+pub const W2R_ALIGN_CENTRE: u32 = 0x12;
+pub const W2R_ALIGN_RIGHT: u32 = 0x14;
+/// `W2rScreen.label` flag: the text in the menus' own font (the Game Menu buttons'), for headings.
+pub const W2R_TEXT_TITLE: u32 = 0x100;
+/// `W2rScreen.mouse` bits.
+pub const W2R_MOUSE_LEFT_DOWN: u32 = 1;
+pub const W2R_MOUSE_LEFT_CLICK: u32 = 2;
+/// The wheel turned this frame, away from you (up) or towards you (down).
+pub const W2R_MOUSE_WHEEL_UP: u32 = 4;
+pub const W2R_MOUSE_WHEEL_DOWN: u32 = 8;
+
+/// Drawing calls for a manager's full-screen window (`screen_set`), in the window's own space:
+/// (0, 0) is its top left, `width` by `height`. Inside `list_begin` / `list_end` rects are in the
+/// list's content space, scrolled. Colours are `r | g << 8 | b << 16 | a << 24`; 0 is the
+/// skin's text colour. Strings are at most 128 bytes.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rScreen {
+    pub struct_size: u32,
+    pub ctx: *mut c_void,
+    pub width: f32,
+    pub height: f32,
+    /// The mouse in the window's space, and `W2R_MOUSE_*` bits.
+    pub mouse_x: f32,
+    pub mouse_y: f32,
+    pub mouse: u32,
+    pub fill: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, colour: u32, round: f32),
+    /// A skinned frame (`W2R_FRAME_*`).
+    pub frame: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, style: u32),
+    pub label: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        r: *const W2rRect,
+        text: W2rStr,
+        align: u32,
+        colour: u32,
+    ),
+    pub wrapped: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, text: W2rStr, colour: u32),
+    /// The game's menu button; 1 when clicked.
+    pub button:
+        unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, text: W2rStr, flags: u32) -> i32,
+    /// Command button art `icon` (the button's icon number) in its frame; 1 when clicked.
+    pub icon: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, icon: u32, flags: u32) -> i32,
+    /// 1 when the left button was clicked inside `r` this frame (in the current space).
+    pub hit: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect) -> i32,
+    /// 1 when the mouse is over `r`.
+    pub hover: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect) -> i32,
+    /// A scrolling region `content_height` tall; 1 when it opened (then draw and `list_end`).
+    pub list_begin: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        r: *const W2rRect,
+        name: W2rStr,
+        content_height: f32,
+    ) -> i32,
+    pub list_end: unsafe extern "C" fn(ctx: *mut c_void),
+    /// 1 when command icon art is loaded (in a match); 0 in the menus, where `icon` draws an empty
+    /// frame and the plugin may write a name instead.
+    pub icons: u32,
+    /// (V2) The width `text` takes on the screen, drawn as `label` with `flags` (`W2R_TEXT_TITLE` for
+    /// the heading font): plugins centre and fit text with it. Present when `struct_size` >=
+    /// `W2R_SCREEN_V2_SIZE`.
+    pub measure: unsafe extern "C" fn(ctx: *mut c_void, text: W2rStr, flags: u32) -> f32,
+}
+/// The screen without `measure`.
+pub const W2R_SCREEN_V1_SIZE: u32 = core::mem::offset_of!(W2rScreen, measure) as u32;
+pub const W2R_SCREEN_V2_SIZE: u32 = core::mem::size_of::<W2rScreen>() as u32;
 
 // ---- UI (only valid inside on_ui) ----------------------------------------------------------
 #[repr(C)]
@@ -675,7 +891,75 @@ pub struct W2rHost {
     /// Sends an HTTPS request to a server named in the manifest's `net_hosts`; the answer arrives
     /// as `W2R_EVT_HTTP_RESPONSE` with the same id. Needs `net.http`. docs/abi.md, "HTTP".
     pub http_request: unsafe extern "C" fn(token: *mut c_void, request: *const W2rHttpRequest) -> W2rStatus,
+
+    // Hotkeys. Appended after `http_request`: check `struct_size >= W2R_HOST_HOTKEY_SERVICE_SIZE`.
+    // docs/abi.md, "Hotkeys".
+    /// Implicit, only inside `on_load`. Offers one action to the hotkey manager. While a manager
+    /// is active the host reads its key and sends `W2R_EVT_HOTKEY_ACTION`; otherwise nothing is sent and
+    /// the plugin reads its keys itself, as before.
+    pub hotkey_offer: unsafe extern "C" fn(
+        token: *mut c_void,
+        def: *const W2rHotkeyDef,
+        out: *mut W2rHandle,
+    ) -> W2rStatus,
+    /// Implicit. 1 while a hotkey manager plugin is active (then a plugin's own key settings
+    /// should be hidden), else 0.
+    pub hotkeys_managed: unsafe extern "C" fn(token: *mut c_void) -> i32,
+    /// `hooks.raw`, only inside `on_load`. Makes this plugin the hotkey manager (one per session;
+    /// `W2R_E_CONFLICT` for a second). The calls below need it (`W2R_E_STATE` otherwise).
+    pub hotkey_manage: unsafe extern "C" fn(token: *mut c_void) -> W2rStatus,
+    pub hotkey_count: unsafe extern "C" fn(token: *mut c_void, count_out: *mut u32) -> W2rStatus,
+    pub hotkey_info:
+        unsafe extern "C" fn(token: *mut c_void, index: u32, out: *mut W2rHotkeyInfo) -> W2rStatus,
+    /// Binds action `index` to `key` and `alt` (0 for none) until the session ends.
+    pub hotkey_bind:
+        unsafe extern "C" fn(token: *mut c_void, index: u32, key: W2rKey, alt: W2rKey) -> W2rStatus,
+    /// Replaces the whole key remap table (at most `W2R_MAX_REMAPS` entries; 0 clears it).
+    pub key_remap_set:
+        unsafe extern "C" fn(token: *mut c_void, entries: *const W2rRemap, count: u32) -> W2rStatus,
+    /// 1: the next key pressed in a match is kept from the game and sent as
+    /// `W2R_EVT_KEY_CAPTURED`, then capture ends. 0 cancels. While the screen (`screen_set`) is up,
+    /// every key is sent that way and kept from the game.
+    pub key_capture: unsafe extern "C" fn(token: *mut c_void, on: i32) -> W2rStatus,
+    /// The manager's page in the Options screen (Options > Hotkeys, at the bottom of the list), drawn
+    /// by `callback` every frame it is up; null removes it.
+    pub screen_set: unsafe extern "C" fn(
+        token: *mut c_void,
+        callback: Option<unsafe extern "C" fn(screen: *const W2rScreen)>,
+    ) -> W2rStatus,
+    /// 1: opens the game's Options screen on the manager's page (a match only). 0: leaves the page,
+    /// back to the Options categories.
+    pub screen_open: unsafe extern "C" fn(token: *mut c_void, open: i32) -> W2rStatus,
+    /// Appended after `screen_open` (`struct_size >= W2R_HOST_HOTKEY_GET_SIZE`): the key and alternate one of
+    /// the caller's own actions is bound to now (its default while no manager has changed it). For
+    /// an action the plugin polls itself (`W2R_HOTKEY_POLL`).
+    pub hotkey_get: unsafe extern "C" fn(token: *mut c_void, action: W2rHandle, key_out: *mut W2rKey, alt_out: *mut W2rKey) -> W2rStatus,
 }
+
+/// `screen_open` codes besides 0 (leave the page) and 1 (open Options on the manager's page).
+pub const W2R_SCREEN_CLOSE: i32 = 2;
+/// `W2R_OK` while the Options screen is up, `W2R_E_STATE` otherwise.
+pub const W2R_SCREEN_QUERY: i32 = 3;
+/// `screen_open`: switch between Classic and HD graphics (as F5 in a match; off a match the
+/// Classic Graphics choice for the next match).
+pub const W2R_SCREEN_GRAPHICS: i32 = 4;
+/// `screen_open`: keep the page's prepared art on disk (`w2rchepageart`) for faster later launches, or
+/// not (and remove it). Off until a plugin turns it on.
+pub const W2R_SCREEN_ART_CACHE_ON: i32 = 5;
+pub const W2R_SCREEN_ART_CACHE_OFF: i32 = 6;
+/// Open Options (or switch it) on this category.
+pub const W2R_SCREEN_OPTIONS: i32 = 0x100;
+pub const W2R_SCREEN_SOUND: i32 = 0x101;
+pub const W2R_SCREEN_SPEED: i32 = 0x102;
+pub const W2R_SCREEN_PREFERENCES: i32 = 0x103;
+pub const W2R_SCREEN_GAMEPLAY: i32 = 0x104;
+pub const W2R_SCREEN_MULTIPLAYER: i32 = 0x105;
+
+/// At most this many `key_remap_set` entries.
+pub const W2R_MAX_REMAPS: u32 = 512;
+/// At most this many `hotkey_offer` actions per plugin.
+pub const W2R_MAX_HOTKEYS: u32 = 64;
+
 
 // ---- overlay --------------------------------------------------------------------------------
 /// `W2rOverlayItem.kind`: a dotted line from (x0, y0) to (x1, y1).
@@ -727,6 +1011,9 @@ pub const W2R_SETTING_ACTION: u32 = 5;
 
 /// `W2rSettingDef.flags`: loaded, saved and readable as usual, but not shown on the screen.
 pub const W2R_SETTING_HIDDEN: u32 = 1;
+/// `W2rSettingDef.flags`: a key setting the plugin hands to the hotkey manager: not shown while one
+/// is active (`hotkeys_managed`), shown as usual otherwise.
+pub const W2R_SETTING_HOTKEY: u32 = 4;
 /// `W2rSettingDef.flags`: the screen applies as soon as this setting changes, as a button does, so
 /// the plugin can react (a dropdown that fills other settings, say) without waiting for Apply.
 pub const W2R_SETTING_LIVE: u32 = 2;
@@ -1051,7 +1338,13 @@ pub const W2R_HOST_ORDER_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, order_issue) + core::mem::size_of::<usize>()) as u32;
 
 /// `struct_size` of a host that has `http_request` (and everything before it).
-pub const W2R_HOST_HTTP_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_HTTP_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, http_request) + core::mem::size_of::<usize>()) as u32;
+/// `struct_size` of a host that has the hotkey service (`screen_open` and everything before it).
+pub const W2R_HOST_HOTKEY_SERVICE_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, screen_open) + core::mem::size_of::<usize>()) as u32;
+/// `struct_size` of a host that also has `hotkey_get`.
+pub const W2R_HOST_HOTKEY_GET_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -1094,7 +1387,14 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 140);
+        assert_eq!(size_of::<W2rHost>(), 184);
+        assert_eq!(W2R_HOST_HOTKEY_SERVICE_SIZE, 180);
+        assert_eq!(W2R_HOST_HOTKEY_GET_SIZE, 184);
+        assert_eq!(size_of::<W2rHotkeyDef>(), 40);
+        assert_eq!(size_of::<W2rHotkeyInfo>(), 64);
+        assert_eq!(size_of::<W2rRemap>(), 16);
+        assert_eq!(size_of::<W2rScreen>(), 76);
+        assert_eq!(W2R_SCREEN_V1_SIZE, 72);
         assert_eq!(size_of::<W2rOverlayItem>(), 24);
         assert_eq!(W2R_HOST_OVERLAY_SIZE, 108);
         assert_eq!(W2R_HOST_SET_CHOICES_SIZE, 112);
@@ -1116,7 +1416,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 272);
+        assert_eq!(size_of::<W2rHost>(), 360);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

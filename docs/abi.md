@@ -216,6 +216,105 @@ browser, and `affects_simulation` stays the plugin's own declaration.
   first, every frame. `W2R_E_STATE` outside the callback; `W2R_E_INVALID` for `..`, a drive colon or
   more than 200 bytes. A folder with no maps gives a count of 0.
 
+## Hotkey service (rebinding)
+
+The hotkey service lets plugins offer actions to one **hotkey manager** plugin, which rebinds them,
+remaps the game's own keys and draws a page in the game's Options screen (the Hotkeys plugin,
+`w2r-hotkeys`, is the manager). These functions were appended to `W2rHost` after
+`settings_declare`: a plugin checks `host->struct_size >= W2R_HOST_HOTKEY_SERVICE_SIZE` before using them,
+so it still loads on an older host.
+
+Keys are `W2rKey`: an SDL scancode in the low 16 bits, with `W2R_KEY_SHIFT`, `W2R_KEY_CTRL` and
+`W2R_KEY_ALT` for the modifiers; 0 is no key. The service sees every key the match gets (a hook on
+the game's SDL key step, `SdlKeyEvent`), never keys typed in a menu text box, and passes everything
+while the chat line is open.
+
+| Function | Who | Notes |
+|---|---|---|
+| `hotkey_offer(def, out)` | any plugin, only inside `on_load` | offers one action (`W2rHotkeyDef`: id `[a-z0-9_]`, label, category, default key and alternate, flags); at most `W2R_MAX_HOTKEYS` (64) per plugin; the handle comes back in `W2R_EVT_HOTKEY_ACTION` |
+| `hotkeys_managed()` | any plugin | 1 while a manager is active: a plugin that polls its own key stops and leaves it to the service |
+| `hotkey_manage()` | `hooks.raw`, only inside `on_load` | becomes the manager (one per session; `W2R_E_CONFLICT` for a second) |
+| `hotkey_count`, `hotkey_info(index, out)` | the manager | every offered action (`W2rHotkeyInfo`: plugin, id, label, category, flags, current and default keys) |
+| `hotkey_bind(index, key, alt)` | the manager | rebinds an action |
+| `key_remap_set(entries, count)` | the manager | replaces the table of game-key remaps (`W2rRemap`: `from` gives the game `to`, 0 swallows it; `card` limits it to one command card, `W2R_ANY_CARD` always; at most `W2R_MAX_REMAPS`) |
+| `key_capture(on)` | the manager | the next key goes to the manager as `W2R_EVT_KEY_CAPTURED`, not to the game |
+| `screen_set(callback)` | the manager | its page, drawn by `callback` inside the Options screen (below) |
+| `screen_open(code)` | the manager | see the codes below |
+| `hotkey_get(action, key_out, alt_out)` | any plugin, for its own action | (appended after `screen_open`: `struct_size >= W2R_HOST_HOTKEY_GET_SIZE`) the key and alternate the action is bound to now, for a key the plugin polls itself |
+
+Action flags: `W2R_HOTKEY_POLL` marks a key the plugin reads itself (from its own hook or by polling, where
+the service would not see it): the service only keeps its binding, never fires an event for it or keeps it
+from the game, and the plugin reads it with `hotkey_get` (Chat's channel keys and Map Preview's key
+work this way). `W2R_HOTKEY_PASS` lets the game see the key too; `W2R_HOTKEY_SAFE_CAST` skips the
+action while a command waits for its target click, and for 700 ms after a plain key (so a spell
+key followed by a letter never fires a menu). `W2R_REMAP_SAFE_CAST` does the same for a remap. A
+remap for the card that is up wins over one for any card. Remapping onto a key with Ctrl or Alt
+does not work for the game's own Ctrl/Alt shortcuts (the game reads the modifiers itself); the
+manager uses actions that call the game's openers for those instead.
+
+Events (only while a manager is active): `W2R_EVT_HOTKEY_ACTION` (15, `W2rEvtHotkeyAction`: the action's
+handle, `down` 1 on press, 0 on release) goes to the action's plugin; `W2R_EVT_KEY_CAPTURED` (16,
+`W2rEvtKey`) goes to the manager. While the manager's page is on screen every key is captured for
+it.
+
+`screen_open` codes:
+
+| Code | Does |
+|---|---|
+| 1 | opens Options on the manager's page (in a match or on the menus) |
+| 0 | leaves the page (back to the Options categories) |
+| `W2R_SCREEN_CLOSE` 2 | closes the Options screen (in a match, the Game Menu too) |
+| `W2R_SCREEN_QUERY` 3 | `W2R_OK` while Options is up, else `W2R_E_STATE` |
+| `W2R_SCREEN_GRAPHICS` 4 | switches Classic / HD graphics: in a match as F5 does (and saves the choice); on the menus, which the game always draws HD, it flips the Classic Graphics setting the next match starts in |
+| `W2R_SCREEN_ART_CACHE_ON` 5, `_OFF` 6 | keeps the page's prepared art in `w2r\cache\pageart` for faster later launches, or not (off also deletes it); off until a manager turns it on |
+| `W2R_SCREEN_OPTIONS` 0x100, `_SOUND` 0x101, `_SPEED` 0x102, `_PREFERENCES` 0x103, `_GAMEPLAY` 0x104, `_MULTIPLAYER` 0x105 | opens Options on that category |
+
+The loader offers its own keys the same way (`feat/hotkeys-mod-keys`): the replay viewer and observer
+keys, the Connection Table, the Host Kick Panel and the Minimap Ping are entries from the plugin
+"W2R Mod Loader" in `hotkey_info`, which the manager rebinds with `hotkey_bind`. The loader keeps
+polling them itself, now by their bound key; the service never consumes them or sends events for
+them. Not yet tested in the game.
+
+
+A declared setting with `W2R_SETTING_HOTKEY` is hidden while a manager is active (the manager
+shows it on its page instead).
+
+### The manager's page (`W2rScreen`)
+
+The callback gets a `W2rScreen` each frame the page is up: the page size, the mouse (`mouse_x`,
+`mouse_y` and `W2R_MOUSE_*` bits: left down, left clicked this frame, wheel up, wheel down) and the
+drawing calls below. Rects are in the page's own space, (0, 0) its top left. Colours are
+`r | g << 8 | b << 16 | a << 24`; 0 is the skin's colour. Strings are at most 128 bytes.
+
+| Call | Draws |
+|---|---|
+| `fill(r, colour, round)` | a filled rect |
+| `frame(r, style)` | `W2R_FRAME_WINDOW` (the Game Menu's window art, nine-sliced; Classic graphics: the Classic HUD's marble or cracked earth), `_PANEL`, `_BANNER` (the title scroll; none in Classic), `_CHECK` / `_CHECK_ON` (the game's checkbox), `_SCROLL` / `_SCROLL_THUMB` (the game's scroll bar; `W2R_FRAME_ACTIVE` while dragged); `W2R_FRAME_ORC` for the Orc art |
+| `label(r, text, align, colour)` | one line; `W2R_ALIGN_LEFT` / `_CENTRE` / `_RIGHT`, and `W2R_TEXT_TITLE` for the heading font. The body text is the menus' font (BLQ55) at the row font's size; in Classic graphics the game's bitmap font (`font12x.fnt`), shrunk to fit its rect |
+| `wrapped(r, text, colour)` | text wrapped to the rect |
+| `button(r, text, flags)` | a button, 1 when clicked: the Game Menu's Human button, `W2R_BUTTON_ORC` for the Orc one, `W2R_BUTTON_GREYED`; Classic graphics: the classic HUD buttons |
+| `icon(r, icon, flags)` | a command icon, 1 when clicked; `W2R_ICON_SELECTED`, `W2R_ICON_ORC`. In a match from the game (the local player's team colour); on the menus from the game's icon files with the team colour painted in |
+| `hit(r)`, `hover(r)` | 1 when the rect was clicked this frame, or is under the mouse |
+| `list_begin`, `list_end` | reserved (no-ops) |
+| `measure(text, flags)` | (V2, `struct_size >= W2R_SCREEN_V2_SIZE`) the width `text` takes as `label` draws it with `flags`, in either look's font |
+
+`icons` is 1 when command icon art is ready, with the `W2R_SCREEN_CLASSIC` bit while the page is in
+Classic graphics (in a match the graphics the game shows; on the menus the Classic Graphics
+setting). A manager lays its page out for that look: the loader draws the Classic art and fonts,
+and the manager fits its layout to the 4:3 Classic view.
+
+The page's art (window, widgets, Classic pieces, icon sheets) is read from the game's own files the
+first time it is drawn, off the main thread; until then a call draws a plain stand-in.
+
+### Testing status (2026-11-04)
+
+Checked in the game (build 1.0.2.2818, single player): the service, actions, remaps and capture;
+the page in a match and on the menus, in Remastered and Classic graphics; F5 on the page; Esc
+closing the Warcraft Tips window; icons and team colours; the art and fonts. Not yet checked:
+multiplayer (two players with the loader, and against players without it), observers and replays
+with the page, rebinding the loader's own keys and Chat's and Map Preview's keys, `measure` and the art cache after this build, and other screen sizes than
+1920 x 1200.
+
 ## Strings and untrusted data
 
 - `W2rStr` is UTF-8 and length-delimited, not NUL-terminated.

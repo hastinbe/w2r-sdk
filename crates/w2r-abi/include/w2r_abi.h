@@ -92,7 +92,9 @@ enum {
     W2R_EVT_GAME_MODE = 11,         /* payload W2rEvtGameMode; the lobby's game mode for the next match */
     W2R_EVT_HOTKEY = 12,            /* payload W2rEvtHotkey; sent to the plugin that registered the key */
     W2R_EVT_COMMAND = 13,           /* payload W2rEvtCommand; sent to the plugin that registered the command */
-    W2R_EVT_HTTP_RESPONSE = 14      /* payload W2rEvtHttp; sent to the plugin that made the request */
+    W2R_EVT_HTTP_RESPONSE = 14,      /* payload W2rEvtHttp; sent to the plugin that made the request */
+    W2R_EVT_HOTKEY_ACTION = 15, /* payload W2rEvtHotkeyAction; only while a hotkey manager is active */
+    W2R_EVT_KEY_CAPTURED = 16   /* payload W2rEvtKey; the key the manager asked for (key_capture) */
 };
 
 typedef struct W2rEvent {
@@ -194,6 +196,127 @@ typedef struct W2rOverlayItem {
     uint32_t rgba;
 } W2rOverlayItem;
 
+/* ---- hotkeys (docs/abi.md, "Hotkey service") --------------------------------------------------- */
+/* A key: the SDL scancode in the low 16 bits and the modifiers that must be held, exactly. */
+typedef uint32_t W2rKey;
+#define W2R_KEY_SHIFT (1u << 16)
+#define W2R_KEY_CTRL (1u << 17)
+#define W2R_KEY_ALT (1u << 18)
+#define W2R_KEY_CODE_MASK 0xFFFFu
+#define W2R_KEY_A 4u
+#define W2R_KEY_P 19u
+#define W2R_KEY_GRAVE 53u
+#define W2R_KEY_F1 58u
+
+#define W2R_HOTKEY_PASS 1u      /* the game sees the key too */
+#define W2R_HOTKEY_SAFE_CAST 2u /* not while a command waits for its target, nor just after one */
+#define W2R_HOTKEY_POLL 4u      /* the plugin polls the key itself; the service only keeps the binding */
+
+typedef struct W2rHotkeyDef {
+    uint32_t struct_size; /* W2R_HOTKEY_DEF_V1_SIZE */
+    uint32_t flags;
+    W2rKey default_key;   /* 0 for none */
+    W2rKey default_alt;
+    W2rStr id;            /* unique within the plugin, [a-z0-9_.], 1-64 bytes */
+    W2rStr label;         /* 1-64 bytes, Title Case */
+    W2rStr category;      /* empty: the plugin's name */
+} W2rHotkeyDef;
+#define W2R_HOTKEY_DEF_V1_SIZE ((uint32_t)sizeof(W2rHotkeyDef))
+
+typedef struct W2rEvtHotkeyAction {
+    uint32_t struct_size;
+    W2rHandle action; /* from hotkey_offer */
+    uint32_t down;    /* 1 down, 0 up; key repeat is not delivered */
+} W2rEvtHotkeyAction;
+
+typedef struct W2rEvtKey {
+    uint32_t struct_size;
+    W2rKey key;
+} W2rEvtKey;
+
+/* Strings point into the host's copy, valid until the next hotkey_info call. */
+typedef struct W2rHotkeyInfo {
+    uint32_t struct_size;
+    uint32_t flags;
+    W2rKey key, alt, default_key, default_alt;
+    W2rStr plugin, plugin_name, id, label, category;
+} W2rHotkeyInfo;
+#define W2R_HOTKEY_INFO_V1_SIZE ((uint32_t)sizeof(W2rHotkeyInfo))
+
+#define W2R_REMAP_SAFE_CAST 1u /* kept from the game while a command waits for its target */
+#define W2R_MAX_REMAPS 512u
+#define W2R_SCREEN_CLOSE 2     /* screen_open: close the Options screen */
+#define W2R_SCREEN_QUERY 3     /* screen_open: W2R_OK while Options is up */
+#define W2R_SCREEN_GRAPHICS 4  /* screen_open: switch Classic / HD (as F5) */
+#define W2R_SCREEN_ART_CACHE_ON 5  /* screen_open: keep the page art on disk for faster launches */
+#define W2R_SCREEN_ART_CACHE_OFF 6 /* screen_open: stop, and remove the cached art */
+#define W2R_SCREEN_OPTIONS 0x100 /* screen_open: Options on its first category */
+#define W2R_SCREEN_SOUND 0x101
+#define W2R_SCREEN_SPEED 0x102
+#define W2R_SCREEN_PREFERENCES 0x103
+#define W2R_SCREEN_GAMEPLAY 0x104
+#define W2R_SCREEN_MULTIPLAYER 0x105
+#define W2R_MAX_HOTKEYS 64u
+
+typedef struct W2rRemap {
+    W2rKey from;
+    W2rKey to; /* 0 keeps `from` from the game */
+    uint32_t flags;
+    uint32_t card; /* only while this command card (button set) is up; W2R_ANY_CARD always */
+} W2rRemap;
+#define W2R_ANY_CARD 0xFFFFFFFFu
+
+/* ---- plugin screen (screen_set; only valid inside its callback) ------------------------- */
+typedef struct W2rRect {
+    float x, y, w, h;
+} W2rRect;
+
+#define W2R_FRAME_WINDOW 0u
+#define W2R_FRAME_PANEL 1u
+#define W2R_FRAME_BANNER 2u /* the game's title scroll at the top (rect ignored) */
+#define W2R_FRAME_CHECK 3u    /* the game's checkbox, off (with W2R_FRAME_ORC for the Orc art) */
+#define W2R_FRAME_CHECK_ON 4u /* the same, ticked */
+#define W2R_FRAME_SCROLL 5u       /* the game's scroll bar track (with W2R_FRAME_ORC for the Orc art) */
+#define W2R_FRAME_SCROLL_THUMB 6u /* its thumb; W2R_FRAME_ACTIVE while dragged */
+#define W2R_FRAME_ACTIVE 0x200u
+#define W2R_SCREEN_CLASSIC 2u /* W2rScreen.icons bit: Classic graphics */
+#define W2R_FRAME_ORC 0x100u
+#define W2R_BUTTON_GREYED 1u
+#define W2R_BUTTON_ORC 2u /* button flag: the Orc Game Menu button */
+#define W2R_ICON_SELECTED 1u
+#define W2R_ICON_ORC 2u /* icon flag: the icon is on the Orc side (the menus use one team colour for both) */
+#define W2R_ALIGN_LEFT 0x11u
+#define W2R_ALIGN_CENTRE 0x12u
+#define W2R_ALIGN_RIGHT 0x14u
+#define W2R_TEXT_TITLE 0x100u /* label flag: the menus' own font, for headings */
+#define W2R_MOUSE_LEFT_DOWN 1u
+#define W2R_MOUSE_LEFT_CLICK 2u
+#define W2R_MOUSE_WHEEL_UP 4u   /* the wheel turned this frame, up */
+#define W2R_MOUSE_WHEEL_DOWN 8u /* the wheel turned this frame, down */
+
+typedef struct W2rScreen {
+    uint32_t struct_size;
+    void *ctx;
+    float width, height;
+    float mouse_x, mouse_y;
+    uint32_t mouse;
+    void (W2R_CALL *fill)(void *ctx, const W2rRect *r, uint32_t colour, float round);
+    void (W2R_CALL *frame)(void *ctx, const W2rRect *r, uint32_t style);
+    void (W2R_CALL *label)(void *ctx, const W2rRect *r, W2rStr text, uint32_t align, uint32_t colour);
+    void (W2R_CALL *wrapped)(void *ctx, const W2rRect *r, W2rStr text, uint32_t colour);
+    int32_t (W2R_CALL *button)(void *ctx, const W2rRect *r, W2rStr text, uint32_t flags);
+    int32_t (W2R_CALL *icon)(void *ctx, const W2rRect *r, uint32_t icon, uint32_t flags);
+    int32_t (W2R_CALL *hit)(void *ctx, const W2rRect *r);
+    int32_t (W2R_CALL *hover)(void *ctx, const W2rRect *r);
+    int32_t (W2R_CALL *list_begin)(void *ctx, const W2rRect *r, W2rStr name, float content_height);
+    void (W2R_CALL *list_end)(void *ctx);
+    uint32_t icons; /* 1 when command icon art is loaded (in a match) */
+    /* V2: the width text takes on the screen, drawn as label with flags (W2R_TEXT_TITLE: headings). */
+    float (W2R_CALL *measure)(void *ctx, W2rStr text, uint32_t flags);
+} W2rScreen;
+#define W2R_SCREEN_V1_SIZE ((uint32_t)offsetof(W2rScreen, measure))
+#define W2R_SCREEN_V2_SIZE ((uint32_t)sizeof(W2rScreen))
+
 /* ---- declared settings (settings_declare; docs/abi.md, "Declared settings") ------------- */
 enum {
     W2R_SETTING_BOOL = 0,   /* a checkbox; settings_set_i64 with 0 or 1 */
@@ -202,6 +325,7 @@ enum {
     W2R_SETTING_STRING = 3, /* a text box; settings_set_str */
     W2R_SETTING_COLOR = 4   /* a color picker; settings_set_str with six hex digits, "rrggbb" */
 };
+#define W2R_SETTING_HOTKEY 4u /* flags: not shown while a hotkey manager is active */
 #define W2R_SETTING_HIDDEN 1u /* flags: stored and readable as usual, never shown */
 #define W2R_SETTING_LIVE 2u   /* flags: the screen applies as soon as this setting changes */
 
@@ -532,6 +656,27 @@ typedef struct W2rHost {
        W2R_E_RATE: more than 30 requests in a minute; W2R_E_STATE: not allowed in on_load.
        */
     W2rStatus (W2R_CALL *http_request)(void *token, const W2rHttpRequest *request);
+
+    /* Hotkeys, appended after http_request: check host->struct_size >= W2R_HOST_HOTKEY_SERVICE_SIZE.
+       docs/abi.md, "Hotkey service". */
+    /* Implicit, only inside on_load: offers one action to the hotkey manager. */
+    W2rStatus (W2R_CALL *hotkey_offer)(void *token, const W2rHotkeyDef *def, W2rHandle *out);
+    /* Implicit: 1 while a hotkey manager plugin is active, else 0. */
+    int32_t (W2R_CALL *hotkeys_managed)(void *token);
+    /* hooks.raw, only inside on_load: become the hotkey manager (one per session). */
+    W2rStatus (W2R_CALL *hotkey_manage)(void *token);
+    /* The manager only. */
+    W2rStatus (W2R_CALL *hotkey_count)(void *token, uint32_t *count_out);
+    W2rStatus (W2R_CALL *hotkey_info)(void *token, uint32_t index, W2rHotkeyInfo *out);
+    W2rStatus (W2R_CALL *hotkey_bind)(void *token, uint32_t index, W2rKey key, W2rKey alt);
+    W2rStatus (W2R_CALL *key_remap_set)(void *token, const W2rRemap *entries, uint32_t count);
+    W2rStatus (W2R_CALL *key_capture)(void *token, int32_t on);
+    W2rStatus (W2R_CALL *screen_set)(void *token, void (W2R_CALL *callback)(const W2rScreen *screen));
+    /* 1: open Options on the manager's page (a match only); 0: leave the page. */
+    W2rStatus (W2R_CALL *screen_open)(void *token, int32_t open);
+    /* Appended after screen_open (struct_size >= W2R_HOST_HOTKEY_GET_SIZE): the key and alternate one of the
+       caller's own actions is bound to now; for W2R_HOTKEY_POLL actions the plugin polls itself. */
+    W2rStatus (W2R_CALL *hotkey_get)(void *token, W2rHandle action, W2rKey *key_out, W2rKey *alt_out);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -546,6 +691,8 @@ typedef struct W2rHost {
 #define W2R_HOST_UNITS_SIZE (offsetof(W2rHost, units_query) + sizeof(void *))
 #define W2R_HOST_ORDER_SIZE (offsetof(W2rHost, order_issue) + sizeof(void *))
 #define W2R_HOST_HTTP_SIZE (offsetof(W2rHost, http_request) + sizeof(void *))
+#define W2R_HOST_HOTKEY_SERVICE_SIZE (offsetof(W2rHost, screen_open) + sizeof(void *))
+#define W2R_HOST_HOTKEY_GET_SIZE ((uint32_t)sizeof(W2rHost))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {
