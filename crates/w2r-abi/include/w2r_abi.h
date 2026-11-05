@@ -679,6 +679,10 @@ typedef struct W2rHost {
     /* Appended after screen_open (struct_size >= W2R_HOST_HOTKEY_GET_SIZE): the key and alternate one of the
        caller's own actions is bound to now; for W2R_HOTKEY_POLL actions the plugin polls itself. */
     W2rStatus (W2R_CALL *hotkey_get)(void *token, W2rHandle action, W2rKey *key_out, W2rKey *alt_out);
+    /* Appended after hotkey_get (struct_size >= W2R_HOST_HOTKEY_LABEL_SIZE): names a combination the caller
+       registered with hotkey_register, for the manager's screen (label 1 to 64 printable bytes; category may
+       be empty). W2R_E_NOT_FOUND when it is not one of the caller's. */
+    W2rStatus (W2R_CALL *hotkey_label)(void *token, W2rStr combo, W2rStr label, W2rStr category);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -694,7 +698,8 @@ typedef struct W2rHost {
 #define W2R_HOST_ORDER_SIZE (offsetof(W2rHost, order_issue) + sizeof(void *))
 #define W2R_HOST_HTTP_SIZE (offsetof(W2rHost, http_request) + sizeof(void *))
 #define W2R_HOST_HOTKEY_SERVICE_SIZE (offsetof(W2rHost, screen_open) + sizeof(void *))
-#define W2R_HOST_HOTKEY_GET_SIZE ((uint32_t)sizeof(W2rHost))
+#define W2R_HOST_HOTKEY_GET_SIZE (offsetof(W2rHost, hotkey_get) + sizeof(void *))
+#define W2R_HOST_HOTKEY_LABEL_SIZE ((uint32_t)sizeof(W2rHost))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {

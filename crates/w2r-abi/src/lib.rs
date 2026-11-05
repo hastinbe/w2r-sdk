@@ -942,6 +942,10 @@ pub struct W2rHost {
     /// the caller's own actions is bound to now (its default while no manager has changed it). For
     /// an action the plugin polls itself (`W2R_HOTKEY_POLL`).
     pub hotkey_get: unsafe extern "C" fn(token: *mut c_void, action: W2rHandle, key_out: *mut W2rKey, alt_out: *mut W2rKey) -> W2rStatus,
+    /// Appended after `hotkey_get` (`struct_size >= W2R_HOST_HOTKEY_LABEL_SIZE`): names a combination the
+    /// caller registered with `hotkey_register`, for the manager's screen. `label` 1 to 64 printable
+    /// bytes; `category` may be empty (the screen's "Plugins"). `W2R_E_NOT_FOUND`: not one of the caller's.
+    pub hotkey_label: unsafe extern "C" fn(token: *mut c_void, combo: W2rStr, label: W2rStr, category: W2rStr) -> W2rStatus,
 }
 
 /// `screen_open` codes besides 0 (leave the page) and 1 (open Options on the manager's page).
@@ -1352,7 +1356,10 @@ pub const W2R_HOST_HTTP_SIZE: u32 =
 pub const W2R_HOST_HOTKEY_SERVICE_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, screen_open) + core::mem::size_of::<usize>()) as u32;
 /// `struct_size` of a host that also has `hotkey_get`.
-pub const W2R_HOST_HOTKEY_GET_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_HOTKEY_GET_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, hotkey_get) + core::mem::size_of::<usize>()) as u32;
+/// `struct_size` of a host that also has `hotkey_label`.
+pub const W2R_HOST_HOTKEY_LABEL_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -1395,9 +1402,10 @@ mod tests {
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 184);
+        assert_eq!(size_of::<W2rHost>(), 188);
         assert_eq!(W2R_HOST_HOTKEY_SERVICE_SIZE, 180);
         assert_eq!(W2R_HOST_HOTKEY_GET_SIZE, 184);
+        assert_eq!(W2R_HOST_HOTKEY_LABEL_SIZE, 188);
         assert_eq!(size_of::<W2rHotkeyDef>(), 40);
         assert_eq!(size_of::<W2rHotkeyInfo>(), 64);
         assert_eq!(size_of::<W2rRemap>(), 16);
@@ -1424,7 +1432,7 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 80);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 360);
+        assert_eq!(size_of::<W2rHost>(), 368);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

@@ -240,6 +240,7 @@ while the chat line is open.
 | `key_capture(on)` | the manager | the next key goes to the manager as `W2R_EVT_KEY_CAPTURED`, not to the game |
 | `screen_set(callback)` | the manager | its page, drawn by `callback` inside the Options screen (below) |
 | `screen_open(code)` | the manager | see the codes below |
+| `hotkey_label(combo, label, category)` | any plugin, for a combination it registered | (appended after `hotkey_get`: `struct_size >= W2R_HOST_HOTKEY_LABEL_SIZE`) names a `hotkey_register` combination for the manager's screen (label 1 to 64 printable bytes, category empty for "Plugins"); `W2R_E_NOT_FOUND` if the caller did not register it |
 | `hotkey_get(action, key_out, alt_out)` | any plugin, for its own action | (appended after `screen_open`: `struct_size >= W2R_HOST_HOTKEY_GET_SIZE`) the key and alternate the action is bound to now, for a key the plugin polls itself |
 
 Action flags: `W2R_HOTKEY_POLL` marks a key the plugin reads itself (from its own hook or by polling, where
