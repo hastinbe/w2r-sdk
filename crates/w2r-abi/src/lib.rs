@@ -358,6 +358,9 @@ pub const W2R_FRAME_CHECK_ON: u32 = 4;
 /// and the thumb pressed with `W2R_FRAME_ACTIVE` (while it is dragged).
 pub const W2R_FRAME_SCROLL: u32 = 5;
 pub const W2R_FRAME_SCROLL_THUMB: u32 = 6;
+/// A title band in the mod's own style: a dark strip with a gold rule along its bottom (the text
+/// is the plugin's). Nothing in Classic graphics, whose titles stand on their own.
+pub const W2R_FRAME_TITLE: u32 = 7;
 pub const W2R_FRAME_ACTIVE: u32 = 0x200;
 /// `W2rScreen.icons` bit: the game is in Classic graphics (the page draws the Classic look).
 pub const W2R_SCREEN_CLASSIC: u32 = 2;

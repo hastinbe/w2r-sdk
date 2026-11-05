@@ -289,7 +289,7 @@ drawing calls below. Rects are in the page's own space, (0, 0) its top left. Col
 | Call | Draws |
 |---|---|
 | `fill(r, colour, round)` | a filled rect |
-| `frame(r, style)` | `W2R_FRAME_WINDOW` (the Game Menu's window art, nine-sliced; Classic graphics: the Classic HUD's marble or cracked earth), `_PANEL`, `_BANNER` (the title scroll; none in Classic), `_CHECK` / `_CHECK_ON` (the game's checkbox), `_SCROLL` / `_SCROLL_THUMB` (the game's scroll bar; `W2R_FRAME_ACTIVE` while dragged); `W2R_FRAME_ORC` for the Orc art |
+| `frame(r, style)` | `W2R_FRAME_WINDOW` (the mod's "War Table" window: dark surface, bevelled gold frame, darkened edges; Classic graphics: the Classic HUD's marble or cracked earth), `_PANEL` (a War Table card; Classic: the game's content panel skin), `_TITLE` (a title band: dark strip with a gold rule and diamond under it; none in Classic), `_BANNER` (the title scroll; none in Classic), `_CHECK` / `_CHECK_ON` (the game's checkbox), `_SCROLL` / `_SCROLL_THUMB` (the game's scroll bar; `W2R_FRAME_ACTIVE` while dragged); `W2R_FRAME_ORC` for the Orc art |
 | `label(r, text, align, colour)` | one line; `W2R_ALIGN_LEFT` / `_CENTRE` / `_RIGHT`, and `W2R_TEXT_TITLE` for the heading font. The body text is the menus' font (BLQ55) at the row font's size; in Classic graphics the game's bitmap font (`font12x.fnt`), shrunk to fit its rect |
 | `wrapped(r, text, colour)` | text wrapped to the rect |
 | `button(r, text, flags)` | a button, 1 when clicked: the Game Menu's Human button, `W2R_BUTTON_ORC` for the Orc one, `W2R_BUTTON_GREYED`; Classic graphics: the classic HUD buttons |

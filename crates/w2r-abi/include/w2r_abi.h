@@ -278,6 +278,7 @@ typedef struct W2rRect {
 #define W2R_FRAME_CHECK_ON 4u /* the same, ticked */
 #define W2R_FRAME_SCROLL 5u       /* the game's scroll bar track (with W2R_FRAME_ORC for the Orc art) */
 #define W2R_FRAME_SCROLL_THUMB 6u /* its thumb; W2R_FRAME_ACTIVE while dragged */
+#define W2R_FRAME_TITLE 7u        /* a title band: dark strip, gold rule along the bottom (none in Classic) */
 #define W2R_FRAME_ACTIVE 0x200u
 #define W2R_SCREEN_CLASSIC 2u /* W2rScreen.icons bit: Classic graphics */
 #define W2R_FRAME_ORC 0x100u
