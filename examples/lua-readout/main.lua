@@ -66,7 +66,7 @@ end)
 local ok, why = w2r.hotkey("Ctrl+Alt+R", function()
   visible = not visible
   refresh()
-end)
+end, "Toggle Match Clock Readout")
 if not ok then w2r.log("hotkey not available: " .. tostring(why)) end
 
 w2r.command("readout", function(e)
