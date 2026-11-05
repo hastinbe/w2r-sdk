@@ -253,6 +253,11 @@ pub const W2R_HOTKEY_SAFE_CAST: u32 = 2;
 /// the service only keeps the binding, never fires `W2R_EVT_HOTKEY_ACTION` or keeps the key from the game.
 /// Read it with `hotkey_get`.
 pub const W2R_HOTKEY_POLL: u32 = 4;
+/// Hotkey flag: listed, not rebindable: the plugin sets the key elsewhere (a setting of its own)
+/// or the game fixes it. The manager shows the key `hotkey_info` reports (the plugin keeps it
+/// current with `hotkey_offer`'s default or the host's own rows), `hotkey_bind` refuses it, and
+/// the service treats it as `W2R_HOTKEY_POLL`: no event, the game sees the key.
+pub const W2R_HOTKEY_FIXED: u32 = 8;
 
 /// One action a plugin offers for the hotkey manager's screen, as `hotkey_offer` takes it.
 /// Every string is copied during the call.
@@ -261,7 +266,7 @@ pub const W2R_HOTKEY_POLL: u32 = 4;
 pub struct W2rHotkeyDef {
     /// `W2R_HOTKEY_DEF_V1_SIZE`.
     pub struct_size: u32,
-    /// `W2R_HOTKEY_PASS`, `W2R_HOTKEY_SAFE_CAST` or 0.
+    /// `W2R_HOTKEY_PASS`, `W2R_HOTKEY_SAFE_CAST`, `W2R_HOTKEY_POLL`, `W2R_HOTKEY_FIXED` or 0.
     pub flags: u32,
     /// The key the action has until a manager binds another; 0 for none.
     pub default_key: W2rKey,

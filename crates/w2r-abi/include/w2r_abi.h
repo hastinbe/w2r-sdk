@@ -211,6 +211,7 @@ typedef uint32_t W2rKey;
 #define W2R_HOTKEY_PASS 1u      /* the game sees the key too */
 #define W2R_HOTKEY_SAFE_CAST 2u /* not while a command waits for its target, nor just after one */
 #define W2R_HOTKEY_POLL 4u      /* the plugin polls the key itself; the service only keeps the binding */
+#define W2R_HOTKEY_FIXED 8u     /* listed, not rebindable: set elsewhere (a setting) or fixed by the game; hotkey_bind refuses it */
 
 typedef struct W2rHotkeyDef {
     uint32_t struct_size; /* W2R_HOTKEY_DEF_V1_SIZE */

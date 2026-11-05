@@ -245,7 +245,11 @@ while the chat line is open.
 Action flags: `W2R_HOTKEY_POLL` marks a key the plugin reads itself (from its own hook or by polling, where
 the service would not see it): the service only keeps its binding, never fires an event for it or keeps it
 from the game, and the plugin reads it with `hotkey_get` (Chat's channel keys and Map Preview's key
-work this way). `W2R_HOTKEY_PASS` lets the game see the key too; `W2R_HOTKEY_SAFE_CAST` skips the
+work this way). `W2R_HOTKEY_FIXED` lists a key that cannot be rebound, because the plugin sets it
+from a setting of its own or the game fixes it: the manager shows the key `hotkey_info` reports
+(the current key, not the default), `hotkey_bind` refuses it (`W2R_E_INVALID`), and the service
+treats it as `W2R_HOTKEY_POLL`. The loader lists its comms wheel key (a Chat setting) and the
+Alt+number control groups this way. `W2R_HOTKEY_PASS` lets the game see the key too; `W2R_HOTKEY_SAFE_CAST` skips the
 action while a command waits for its target click, and for 700 ms after a plain key (so a spell
 key followed by a letter never fires a menu). `W2R_REMAP_SAFE_CAST` does the same for a remap. A
 remap for the card that is up wins over one for any card. Remapping onto a key with Ctrl or Alt
