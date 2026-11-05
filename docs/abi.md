@@ -484,6 +484,12 @@ and exactly those modifiers are down and the key goes down, the plugin gets `W2R
   `Alt+F`, `Alt+G`, `Alt+C`, `Ctrl+Shift+N`, `Ctrl+Shift+K`, `Ctrl+A/C/V/X/Z/Y`, `Alt+F4`,
   `Alt+Tab`, `Alt+0` to `Alt+9`, `F1`, `F10`, `F11`, `F12`.
 - `W2R_E_LIMIT`: more than 8 hotkeys. A disabled plugin gives its keys up.
+- The combination is also an entry of the hotkey service (below), under the plugin with the id
+  `ctrl_alt_k` (the combination, lower case, `_` for `+`), the label `<plugin id>: Ctrl+Alt+K` and
+  the category `Plugins`, flagged `W2R_HOTKEY_POLL`: the Hotkeys screen lists it, checks it for
+  clashes and may rebind it, and then `W2R_EVT_HOTKEY` fires on the bound key (and alternate)
+  instead. The plugin changes nothing. A plugin that wants its own label or category offers the
+  action with `hotkey_offer` instead.
 
 **`command_register(token, name, id)`** registers the chat command `/name`: 1 to 16 of `a-z`,
 `0-9` and `-`, starting with a letter. When the player types it in the lobby or in a match chat
