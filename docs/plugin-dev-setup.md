@@ -180,8 +180,9 @@ the `W2rUi` calls. Plugin settings are stored in `config\<id>.json` and its own 
 
 Most features can be tried on your own in a custom game against the computer, but anything about
 the lobby or other players needs a second machine, or a friend with the mod. A plugin that sets
-`affects_simulation` or uses `hooks.raw` is part of the session fingerprint, so everyone in the game
-must have the same build of it; the lobby warns when they do not.
+`affects_simulation` is part of the session fingerprint, so everyone in the game must have the same
+build of it; the lobby warns when they do not. Set it if your hooks change what the game simulates
+(units, orders, rules); leave it off for screens, sounds, keys and other local changes.
 
 ## 5. Checklist before a pull request
 

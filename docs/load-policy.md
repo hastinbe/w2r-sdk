@@ -81,10 +81,11 @@ Two limits of the pin, stated so nobody relies on more:
 Plugins with `affects_simulation: true` change what the game simulates, so players must agree on
 them.
 
-- **Input:** every plugin that is *loaded this session* and either has `affects_simulation: true`
-  or was approved `hooks.raw` (a raw hook can change anything, so it is always treated as
-  simulation-affecting), as `(id, version, dll sha256)`. A script plugin can be neither, so it is
-  never in the fingerprint.
+- **Input:** every plugin that is *loaded this session* and has `affects_simulation: true`, as
+  `(id, version, dll sha256)`. The manifest's declaration is trusted: a raw hook alone does not
+  count (since core 1.266.0), because most plugins hook the game for screens, sounds and keys, and
+  counting them made every lobby show a mismatch. A plugin whose hooks do change the simulation
+  must say so. A script plugin cannot, so it is never in the fingerprint.
 - **Encoding:** sort by `id` (bytewise UTF-8). For each plugin append `id`, `0x00`, `version`,
   `0x00`, then the 32 raw bytes of the DLL SHA-256. Hash the concatenation with SHA-256 and keep the
   first 4 bytes. The empty set gives `00 00 00 00` without hashing. Duplicate ids cannot occur.
