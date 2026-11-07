@@ -117,6 +117,9 @@ pub const W2R_EVT_KEY_CAPTURED: W2rEventId = 16;
 pub const W2R_GAME_MODE_CLASSIC_BALANCE: u32 = 1 << 0;
 /// `W2rEvtGameMode::flags`: the mode is for a recording being played, which is not a networked game
 pub const W2R_GAME_MODE_REPLAY: u32 = 1 << 1;
+/// `W2rEvtGameMode::flags`: A* pathing is on (every player runs the same build of the plugin
+/// that provides it with the mode on; a recording plays as recorded)
+pub const W2R_GAME_MODE_ASTAR_PATHING: u32 = 1 << 2;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

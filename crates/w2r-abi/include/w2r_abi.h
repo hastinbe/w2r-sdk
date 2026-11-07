@@ -135,7 +135,8 @@ typedef struct W2rEvtCommand {
 
 enum {
     W2R_GAME_MODE_CLASSIC_BALANCE = 1u << 0,
-    W2R_GAME_MODE_REPLAY = 1u << 1 /* the mode is for a recording being played (not a networked game) */
+    W2R_GAME_MODE_REPLAY = 1u << 1, /* the mode is for a recording being played (not a networked game) */
+    W2R_GAME_MODE_ASTAR_PATHING = 1u << 2 /* A* pathing: every player runs the same build of the plugin that provides it, with it on */
 };
 typedef struct W2rEvtGameMode {
     uint32_t struct_size;
