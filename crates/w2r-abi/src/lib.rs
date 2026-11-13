@@ -120,6 +120,9 @@ pub const W2R_GAME_MODE_REPLAY: u32 = 1 << 1;
 /// `W2rEvtGameMode::flags`: A* pathing is on (every player runs the same build of the plugin
 /// that provides it with the mode on; a recording plays as recorded)
 pub const W2R_GAME_MODE_ASTAR_PATHING: u32 = 1 << 2;
+/// `W2rEvtGameMode::flags`: the match is with classic clients playing War2Mod's "Blizzard" game
+/// mode: the Remastered balance, except where War2Mod's copy of it differs
+pub const W2R_GAME_MODE_WAR2MOD_BLIZZARD: u32 = 1 << 3;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
