@@ -379,11 +379,19 @@ typedef struct W2rUi {
        entry, with *selected set to it. */
     int32_t (W2R_CALL *combo)(void *ctx, W2rStr text, const W2rStr *choices, uint32_t count,
                               int32_t *selected);
+    /* Appended after combo: check ui->struct_size >= W2R_UI_BUTTON_ROW_SIZE. `count` (2 to
+       W2R_MAX_BUTTON_ROW) buttons side by side in one row, labelled by `labels`; three or more
+       are equally wide, two are two thirds and one third; returns the index pressed this
+       frame, or -1. */
+    int32_t (W2R_CALL *button_row)(void *ctx, const W2rStr *labels, uint32_t count);
 } W2rUi;
 
 #define W2R_UI_TEXT_EDIT_SIZE ((uint32_t)(offsetof(W2rUi, set_active) + sizeof(void *)))
 #define W2R_UI_COLOR_EDIT_SIZE ((uint32_t)(offsetof(W2rUi, color_edit) + sizeof(void *)))
 #define W2R_UI_COMBO_SIZE ((uint32_t)(offsetof(W2rUi, combo) + sizeof(void *)))
+#define W2R_UI_BUTTON_ROW_SIZE ((uint32_t)sizeof(W2rUi))
+#define W2R_MAX_BUTTON_ROW 4u
+#define W2R_MAX_MAP_PATH 512u
 #define W2R_COLOR_HEX_BYTES 7u
 
 /* ---- host table: provided by the host, one instance per plugin ------------------------- */
@@ -685,6 +693,23 @@ typedef struct W2rHost {
        registered with hotkey_register, for the manager's screen (label 1 to 64 printable bytes; category may
        be empty). W2R_E_NOT_FOUND when it is not one of the caller's. */
     W2rStatus (W2R_CALL *hotkey_label)(void *token, W2rStr combo, W2rStr label, W2rStr category);
+    /* Create screen, by map path; appended after hotkey_label (struct_size >= W2R_HOST_MAP_PATH_SIZE).
+       Only inside the create-screen callback. A path is the host's opaque name for a map. */
+    /* Path of the nth map with `players` maximum players (0 = any), under create_map_folder's limit,
+       into buf (cap bytes, no NUL), length to *len_out. W2R_E_LIMIT: cap too small (len_out set);
+       W2R_E_NOT_FOUND: nth past the count; W2R_E_BUSY: the index is building. */
+    W2rStatus (W2R_CALL *create_map_path)(void *token, uint32_t players, uint32_t nth, uint8_t *buf,
+                                          uint32_t cap, uint32_t *len_out);
+    /* Makes the indexed map at `path` the selected one; W2R_E_NOT_FOUND when none has it. */
+    W2rStatus (W2R_CALL *create_map_select_path)(void *token, W2rStr path);
+    /* The selected map's path; W2R_E_NOT_FOUND when it is not an indexed map. */
+    W2rStatus (W2R_CALL *create_map_current)(void *token, uint8_t *buf, uint32_t cap, uint32_t *len_out);
+    /* The player's favorite maps (starred in the map browser) as paths separated by '\n', into buf
+       (cap bytes, no NUL), length to *len_out; W2R_E_LIMIT when cap is too small (len_out set). */
+    W2rStatus (W2R_CALL *create_map_favorites)(void *token, uint8_t *buf, uint32_t cap, uint32_t *len_out);
+    /* Stars (favorite 1) or unstars (0) the indexed map at `path`, in the browser's own list;
+       W2R_E_NOT_FOUND when no indexed map has it, W2R_E_LIMIT when the list is full. */
+    W2rStatus (W2R_CALL *create_map_favorite_set)(void *token, W2rStr path, int32_t favorite);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -701,7 +726,8 @@ typedef struct W2rHost {
 #define W2R_HOST_HTTP_SIZE (offsetof(W2rHost, http_request) + sizeof(void *))
 #define W2R_HOST_HOTKEY_SERVICE_SIZE (offsetof(W2rHost, screen_open) + sizeof(void *))
 #define W2R_HOST_HOTKEY_GET_SIZE (offsetof(W2rHost, hotkey_get) + sizeof(void *))
-#define W2R_HOST_HOTKEY_LABEL_SIZE ((uint32_t)sizeof(W2rHost))
+#define W2R_HOST_HOTKEY_LABEL_SIZE (offsetof(W2rHost, hotkey_label) + sizeof(void *))
+#define W2R_HOST_MAP_PATH_SIZE ((uint32_t)sizeof(W2rHost))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {

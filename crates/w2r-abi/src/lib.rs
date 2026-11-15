@@ -495,6 +495,13 @@ pub struct W2rUi {
         count: u32,
         selected: *mut i32,
     ) -> i32,
+    /// Appended after `combo`: check `struct_size >= W2R_UI_BUTTON_ROW_SIZE` first. `count` (2 to
+    /// `W2R_MAX_BUTTON_ROW`) buttons side by side in one row, each labelled by the matching entry
+    /// of `labels`. Three or more are equally wide; two are two thirds and one third, so a row of
+    /// two lines up with a row of three. Returns the index of the one pressed this frame, or -1. A
+    /// screen that cannot place them side by side stacks them; the result is the same.
+    pub button_row:
+        unsafe extern "C" fn(ctx: *mut c_void, labels: *const W2rStr, count: u32) -> i32,
 }
 
 /// `W2rUi.struct_size` with `text_edit` and `set_active`: a plugin that wants them checks
@@ -509,7 +516,18 @@ pub const W2R_UI_COLOR_EDIT_SIZE: u32 =
 
 /// `W2rUi.struct_size` with `combo`: a plugin that wants it checks
 /// `ui.struct_size >= W2R_UI_COMBO_SIZE`.
-pub const W2R_UI_COMBO_SIZE: u32 = core::mem::size_of::<W2rUi>() as u32;
+pub const W2R_UI_COMBO_SIZE: u32 =
+    (core::mem::offset_of!(W2rUi, combo) + core::mem::size_of::<usize>()) as u32;
+
+/// `W2rUi.struct_size` with `button_row`: a plugin that wants it checks
+/// `ui.struct_size >= W2R_UI_BUTTON_ROW_SIZE`.
+pub const W2R_UI_BUTTON_ROW_SIZE: u32 = core::mem::size_of::<W2rUi>() as u32;
+
+/// The most buttons `button_row` places in one row.
+pub const W2R_MAX_BUTTON_ROW: u32 = 4;
+
+/// The longest map path `create_map_path` and `create_map_current` give.
+pub const W2R_MAX_MAP_PATH: u32 = 512;
 
 /// Bytes in a `color_edit` buffer: six hex digits and a NUL.
 pub const W2R_COLOR_HEX_BYTES: u32 = 7;
@@ -952,6 +970,49 @@ pub struct W2rHost {
     /// caller registered with `hotkey_register`, for the manager's screen. `label` 1 to 64 printable
     /// bytes; `category` may be empty (the screen's "Plugins"). `W2R_E_NOT_FOUND`: not one of the caller's.
     pub hotkey_label: unsafe extern "C" fn(token: *mut c_void, combo: W2rStr, label: W2rStr, category: W2rStr) -> W2rStatus,
+
+    // Create screen, by map path. Appended after `hotkey_label` (`struct_size >= W2R_HOST_MAP_PATH_SIZE`).
+    // Only inside the create-screen callback, like `create_map_count`. A path is the host's own
+    // name for a map (opaque to the plugin: store it, compare it, hand it back); it stays the
+    // same between launches while the file does not move.
+    /// Writes the path of the `nth` (0-based, index order) map with `players` maximum players (0 =
+    /// any), under this callback's `create_map_folder` limit, into `buf` (`cap` bytes, no NUL) and
+    /// its length to `len_out`. `W2R_E_LIMIT` when `cap` is too small (`len_out` still set),
+    /// `W2R_E_NOT_FOUND` for an `nth` past the count, `W2R_E_BUSY` while the index builds.
+    pub create_map_path: unsafe extern "C" fn(
+        token: *mut c_void,
+        players: u32,
+        nth: u32,
+        buf: *mut u8,
+        cap: u32,
+        len_out: *mut u32,
+    ) -> W2rStatus,
+    /// Makes the indexed map at `path` the screen's selected map. `W2R_E_NOT_FOUND` when no
+    /// indexed map has that path.
+    pub create_map_select_path: unsafe extern "C" fn(token: *mut c_void, path: W2rStr) -> W2rStatus,
+    /// Writes the path of the screen's selected map (as `create_map_path` does); `W2R_E_NOT_FOUND`
+    /// when it is not an indexed map (no map selected, or one outside the maps folder).
+    pub create_map_current: unsafe extern "C" fn(
+        token: *mut c_void,
+        buf: *mut u8,
+        cap: u32,
+        len_out: *mut u32,
+    ) -> W2rStatus,
+    /// Writes the player's favorite maps, the ones starred in the map browser, as paths (the same
+    /// names `create_map_path` gives) separated by `\n`, into `buf` (`cap` bytes, no NUL) and the
+    /// length to `len_out`. `W2R_E_LIMIT` when `cap` is too small (`len_out` still set). Paths
+    /// compare without regard to case.
+    pub create_map_favorites: unsafe extern "C" fn(
+        token: *mut c_void,
+        buf: *mut u8,
+        cap: u32,
+        len_out: *mut u32,
+    ) -> W2rStatus,
+    /// Stars (`favorite` 1) or unstars (0) the indexed map at `path`, in the same list the map
+    /// browser keeps. `W2R_E_NOT_FOUND` when no indexed map has that path, `W2R_E_LIMIT` when the
+    /// list is full.
+    pub create_map_favorite_set:
+        unsafe extern "C" fn(token: *mut c_void, path: W2rStr, favorite: i32) -> W2rStatus,
 }
 
 /// `screen_open` codes besides 0 (leave the page) and 1 (open Options on the manager's page).
@@ -1365,7 +1426,11 @@ pub const W2R_HOST_HOTKEY_SERVICE_SIZE: u32 =
 pub const W2R_HOST_HOTKEY_GET_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, hotkey_get) + core::mem::size_of::<usize>()) as u32;
 /// `struct_size` of a host that also has `hotkey_label`.
-pub const W2R_HOST_HOTKEY_LABEL_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_HOTKEY_LABEL_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, hotkey_label) + core::mem::size_of::<usize>()) as u32;
+/// `struct_size` of a host that also has `create_map_path`, `create_map_select_path`,
+/// `create_map_current`, `create_map_favorites` and `create_map_favorite_set`.
+pub const W2R_HOST_MAP_PATH_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -1404,11 +1469,13 @@ mod tests {
         assert_eq!(size_of::<W2rStr>(), 8);
         assert_eq!(size_of::<W2rEvent>(), 12);
         assert_eq!(size_of::<W2rPlugin>(), 20);
-        assert_eq!(size_of::<W2rUi>(), 40);
+        assert_eq!(size_of::<W2rUi>(), 44);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 32);
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
-        assert_eq!(size_of::<W2rHost>(), 188);
+        assert_eq!(W2R_UI_BUTTON_ROW_SIZE, 44);
+        assert_eq!(size_of::<W2rHost>(), 208);
+        assert_eq!(W2R_HOST_MAP_PATH_SIZE, 208);
         assert_eq!(W2R_HOST_HOTKEY_SERVICE_SIZE, 180);
         assert_eq!(W2R_HOST_HOTKEY_GET_SIZE, 184);
         assert_eq!(W2R_HOST_HOTKEY_LABEL_SIZE, 188);
@@ -1436,9 +1503,9 @@ mod tests {
         assert_eq!(size_of::<W2rStr>(), 16);
         assert_eq!(size_of::<W2rEvent>(), 16);
         assert_eq!(size_of::<W2rPlugin>(), 40);
-        assert_eq!(size_of::<W2rUi>(), 80);
+        assert_eq!(size_of::<W2rUi>(), 88);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 368);
+        assert_eq!(size_of::<W2rHost>(), 408);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

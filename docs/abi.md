@@ -215,6 +215,28 @@ browser, and `affects_simulation` stays the plugin's own declaration.
   whole folder names; empty removes the limit). The limit ends when the callback returns, so call it
   first, every frame. `W2R_E_STATE` outside the callback; `W2R_E_INVALID` for `..`, a drive colon or
   more than 200 bytes. A folder with no maps gives a count of 0.
+- `create_map_path(token, players, nth, buf, cap, len_out)`, `create_map_select_path(token, path)`
+  and `create_map_current(token, buf, cap, len_out)` (appended; `host->struct_size >=
+  W2R_HOST_MAP_PATH_SIZE`) name maps instead of counting them, so a plugin can remember or exclude
+  particular maps. A path is the host's own name for an indexed map: opaque, stable between
+  launches while the file stays put, at most `W2R_MAX_MAP_PATH` (512) bytes, no NUL. `create_map_path`
+  gives the path of the `nth` map of the same filtered list `create_map_select` counts
+  (`W2R_E_LIMIT` with `len_out` set when `cap` is too small, `W2R_E_NOT_FOUND` past the count,
+  `W2R_E_BUSY` while the index builds). `create_map_select_path` selects the indexed map with that
+  path exactly as `create_map_select` does (`W2R_E_NOT_FOUND` for none). `create_map_current` gives
+  the path of the selected map (`W2R_E_NOT_FOUND` when it is not an indexed map). All work only
+  inside the create-screen callback (`W2R_E_STATE` elsewhere).
+- `create_map_favorites(token, buf, cap, len_out)` and `create_map_favorite_set(token, path, favorite)`
+  (same group, same `struct_size` rule) read and change the player's favorite maps: the list the map
+  browser's star keeps, so a map starred in either place is a favorite in both. `create_map_favorites`
+  writes the paths separated by `\n` (`W2R_E_LIMIT` with `len_out` set when `cap` is too small; paths
+  compare without regard to case); `create_map_favorite_set` stars or unstars the indexed map at a
+  path (`W2R_E_NOT_FOUND` for none, `W2R_E_LIMIT` when the list is full). Callback only.
+- `W2rUi.button_row(ctx, labels, count)` (appended; `ui->struct_size >= W2R_UI_BUTTON_ROW_SIZE`): 2 to
+  `W2R_MAX_BUTTON_ROW` (4) buttons in one row (three or more equally wide; two are two thirds and one
+  third, so a row of two lines up with a row of three), returning the index pressed this frame or
+  -1.  On the create screen they sit side by side across the map column; a screen that cannot do
+  that stacks them one under another.
 
 ## Hotkey service (rebinding)
 
