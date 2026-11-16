@@ -113,7 +113,7 @@ Never commit that file. `CONTRIBUTING.md` explains the `Cargo.lock` side effect 
 ## 4. Try it in the game
 
 Install the mod itself first: run the **W2R Mod Loader** app from the
-[releases page](https://github.com/hastinbe/w2r-mod-loader/releases) and click **Install the mod**.
+[releases page](https://github.com/hastinbe/w2r-mod-loader-releases/releases) and click **Install the mod**.
 Start the game once so the `w2r` folder exists.
 
 Install your own build with the manager. The host only loads a plugin whose DLL hash and capabilities
