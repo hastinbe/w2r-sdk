@@ -18,6 +18,7 @@ next plugin. A failing plugin never stops the game or other plugins.
 | 1 | `E_STATE` | `plugin.json` is missing, or the plugin's folder name differs from the manifest `id` |
 | 2 | `E_MANIFEST` | `plugin.json` fails [manifest.md](manifest.md) (log the specific manifest reason code) |
 | 3 | `E_BUILD` | the running game build is covered by no `game_builds` entry |
+| 3b | `E_CORE` | the manifest `min_core` is above the running core's version (decided right after check 3) |
 | 4 | `E_ABI` | the manifest `abi` is greater than the host's `W2R_ABI_VERSION` (for a script: than the host's script API version) |
 | 5 | `E_HASH` | the SHA-256 of the entry (DLL or script) differs from `state.json` `sha256` |
 | 6 | `E_CAPS` | manifest `capabilities` is not a subset of `approved_capabilities` |
