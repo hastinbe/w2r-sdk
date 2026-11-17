@@ -8,7 +8,7 @@ FIELDS = {
     "schema", "id", "name", "version", "author", "description", "entry", "abi",
     "game_builds", "capabilities", "affects_simulation", "dependencies",
 }
-OPTIONAL_FIELDS = {"replaces", "net_hosts"}
+OPTIONAL_FIELDS = {"replaces", "net_hosts", "min_core"}
 CAPABILITIES = {"game.read", "chat.read", "chat.write", "net.send", "hooks.raw", "game.control", "net.http"}
 RESERVED_DEVICES = {"CON", "PRN", "AUX", "NUL"} | {"COM%d" % i for i in range(1, 10)} | {
     "LPT%d" % i for i in range(1, 10)
@@ -158,6 +158,18 @@ def _net_hosts_ok(doc):
     return None
 
 
+def _min_core_ok(doc):
+    """`min_core` is a plain MAJOR.MINOR.PATCH version (no pre-release)."""
+    if "min_core" not in doc:
+        return None
+    v = doc["min_core"]
+    if not isinstance(v, str):
+        return "bad_type"
+    if not valid_semver(v) or "-" in v:
+        return "bad_min_core"
+    return None
+
+
 def validate_manifest(raw):
     if len(raw) > MAX_BYTES:
         return "too_large"
@@ -200,4 +212,4 @@ def validate_manifest(raw):
         err = _replaces_ok(doc["replaces"], doc["id"], doc["dependencies"])
         if err:
             return err
-    return _net_hosts_ok(doc) or "ok"
+    return _net_hosts_ok(doc) or _min_core_ok(doc) or "ok"

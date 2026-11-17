@@ -30,7 +30,7 @@ const FIELDS: [&str; 12] = [
     "dependencies",
 ];
 /// Allowed but not required (docs/manifest.md).
-const OPTIONAL_FIELDS: [&str; 2] = ["replaces", "net_hosts"];
+const OPTIONAL_FIELDS: [&str; 3] = ["replaces", "net_hosts", "min_core"];
 
 /// A reason code from docs/manifest.md, or `"ok"`.
 pub type Reason = &'static str;
@@ -126,6 +126,8 @@ pub struct Manifest {
     pub replaces: Vec<Dependency>,
     /// The servers a plugin with `net.http` may talk to (`net_hosts`; empty without `net.http`).
     pub net_hosts: Vec<String>,
+    /// The oldest W2R Mod Loader core this plugin runs on (`min_core`; `None` when absent).
+    pub min_core: Option<Version>,
 }
 
 impl Manifest {
@@ -291,6 +293,19 @@ pub fn is_valid_net_host(s: &str) -> bool {
             .is_some_and(|l| l.bytes().any(|b| b.is_ascii_lowercase()))
 }
 
+/// The optional `min_core`: a plain `MAJOR.MINOR.PATCH` core version (no pre-release):
+/// `bad_min_core` for any other text, `bad_type` when it is not a string.
+fn min_core(doc: &Value) -> Result<Option<Version>, Reason> {
+    let Some(v) = doc.get("min_core") else {
+        return Ok(None);
+    };
+    let text = v.as_str().ok_or("bad_type")?;
+    match Version::parse(text) {
+        Some(version) if version.pre.is_empty() => Ok(Some(version)),
+        _ => Err("bad_min_core"),
+    }
+}
+
 /// The optional `net_hosts` list: 1 to 4 distinct valid host names, and only with `net.http`
 /// (which in turn needs it): `bad_net_hosts` for any mismatch, `bad_type` when it is not a list.
 fn net_hosts(doc: &Value, capabilities: &[String]) -> Result<Vec<String>, Reason> {
@@ -373,6 +388,7 @@ pub fn validate(raw: &[u8]) -> Result<Manifest, Reason> {
         None => Vec::new(),
     };
     let net_hosts = net_hosts(&doc, &capabilities)?;
+    let min_core = min_core(&doc)?;
 
     Ok(Manifest {
         id,
@@ -389,6 +405,7 @@ pub fn validate(raw: &[u8]) -> Result<Manifest, Reason> {
         dependencies,
         replaces,
         net_hosts,
+        min_core,
     })
 }
 

@@ -743,6 +743,198 @@
    "affects_simulation": false,
    "author": "someone",
    "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": "1.276.0",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_ok"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": "0.0.0",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_zero_ok"
+ },
+ {
+  "expect": "bad_min_core",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": "2.0.0-beta.1",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_prerelease"
+ },
+ {
+  "expect": "bad_min_core",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": "2.0",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_two_parts"
+ },
+ {
+  "expect": "bad_min_core",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": "02.0.0",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_leading_zero"
+ },
+ {
+  "expect": "bad_min_core",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": "",
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_empty"
+ },
+ {
+  "expect": "bad_type",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": 2,
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_number"
+ },
+ {
+  "expect": "bad_type",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
+    "game.read",
+    "chat.read"
+   ],
+   "dependencies": [],
+   "description": "One sentence.",
+   "entry": "example_plugin.dll",
+   "game_builds": [
+    "1.0.2.2818"
+   ],
+   "id": "example-plugin",
+   "min_core": null,
+   "name": "Example Plugin",
+   "schema": 1,
+   "version": "1.2.0"
+  },
+  "name": "min_core_null"
+ },
+ {
+  "expect": "ok",
+  "manifest": {
+   "abi": 1,
+   "affects_simulation": false,
+   "author": "someone",
+   "capabilities": [
     "net.http"
    ],
    "dependencies": [],

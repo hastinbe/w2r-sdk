@@ -38,7 +38,7 @@ The rules below are normative; `tools/w2r_spec/manifest.py` is the executable re
 
 ## Fields
 
-Twelve fields are required and two are optional (`replaces` and `net_hosts`, below). No other fields are allowed.
+Twelve fields are required and three are optional (`replaces`, `net_hosts` and `min_core`, below). No other fields are allowed.
 
 | Field | Type | Rule | Reason code |
 |---|---|---|---|
@@ -56,6 +56,7 @@ Twelve fields are required and two are optional (`replaces` and `net_hosts`, bel
 | `dependencies` | array | at most 16 objects, see below | `bad_dependency`, `bad_type` |
 | `replaces` | array | optional; same entries as `dependencies`, see below | `bad_replaces`, `bad_type` |
 | `net_hosts` | array | optional; 1 to 4 distinct host names, present exactly when `capabilities` holds `net.http`, see below | `bad_net_hosts`, `bad_type` |
+| `min_core` | string | optional; the oldest W2R Mod Loader core the plugin runs on, a plain `MAJOR.MINOR.PATCH` (no pre-release), see below | `bad_min_core`, `bad_type` |
 | (script) | | a `.lua` entry with `affects_simulation: true`, or with a capability other than `chat.read`, `chat.write`, `game.read`, `game.control` or `net.http`, is refused; checked after `affects_simulation` | `bad_script` |
 
 Notes:
@@ -89,6 +90,11 @@ Notes:
   ending with `-`), at least two labels, each 1 to 63 bytes, at most 253 bytes in all, with a letter
   in the last label so an IP address never qualifies; no scheme, port, path or wildcard. The install
   prompt shows the names. It is checked last, after `replaces`.
+- **`min_core`** (optional, absent means any core) is the oldest core of the mod that has what the
+  plugin needs. A manager hides, and refuses to install or update to, a version whose `min_core` is
+  above the installed core, and says which core it needs; the in-game host does not load such a
+  plugin. A manager or core that predates the field sees an unknown field and skips the version, so
+  the version is simply not offered to it. It is checked after `net_hosts`.
 - **`replaces`** (optional, absent means none) lists plugins this one supersedes, for a rename, a
   merge or a successor. Entries have the same shape and rules as `dependencies` (`id`,
   `version_req`, at most 16, no repeats, not the plugin's own id), and an id may not appear in both
@@ -112,8 +118,8 @@ then each field in the order of the table above (`bad_script` after `affects_sim
 | `not_json` | invalid UTF-8 or JSON, BOM, `NaN`, runaway nesting |
 | `duplicate_key` | an object repeats a key |
 | `not_object` | top level is not an object |
-| `unknown_field` / `missing_field` | a required field is missing or one outside the thirteen is present |
-| `bad_schema`, `bad_id`, `bad_version`, `bad_entry`, `bad_abi`, `bad_build`, `bad_capability`, `bad_dependency`, `bad_replaces`, `bad_net_hosts` | that field violates its rule |
+| `unknown_field` / `missing_field` | a required field is missing or one outside the fifteen is present |
+| `bad_schema`, `bad_id`, `bad_version`, `bad_entry`, `bad_abi`, `bad_build`, `bad_capability`, `bad_dependency`, `bad_replaces`, `bad_net_hosts`, `bad_min_core` | that field violates its rule |
 | `bad_script` | a `.lua` entry asks for a capability a script cannot use, or `affects_simulation: true` |
 | `bad_type` | wrong JSON type for a container or boolean field |
 | `bad_string` | empty, or contains a control character |
