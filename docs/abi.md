@@ -210,7 +210,7 @@ one draws nothing.
 | `line(ctx, x0, y0, x1, y1, colour, thickness)` | a solid line |
 | `circle(ctx, x, y, radius, colour, thickness)` | a ring `thickness` pixels wide centred on (x, y); filled when `thickness` is 0 |
 | `label(ctx, r, text, align, colour)` | one line of text in the HUD's font, placed in `r` by `W2R_ALIGN_*`; colour 0 is the HUD's text colour |
-| `measure(ctx, text, flags)` | the width `label` gives `text`; `flags` is 0 |
+| `measure(ctx, text, flags)` | the width `label` gives `text`; `flags` is 0, or `W2R_TEXT_SMALL` when the label is drawn with it |
 
 A plugin checks `overlay->struct_size >= W2R_OVERLAY_V1_SIZE` before using the table; later calls
 are appended. The callback only draws: host calls that change state belong in the event handler.

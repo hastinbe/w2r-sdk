@@ -392,6 +392,9 @@ pub const W2R_ALIGN_CENTRE: u32 = 0x12;
 pub const W2R_ALIGN_RIGHT: u32 = 0x14;
 /// `W2rScreen.label` flag: the text in the menus' own font (the Game Menu buttons'), for headings.
 pub const W2R_TEXT_TITLE: u32 = 0x100;
+/// `W2rOverlay.label` flag (with the alignment) and `W2rOverlay.measure` flag: the text at 70 % of
+/// the HUD font's size, for a number on something small such as a 16-pixel icon.
+pub const W2R_TEXT_SMALL: u32 = 0x200;
 /// `W2rScreen.mouse` bits.
 pub const W2R_MOUSE_LEFT_DOWN: u32 = 1;
 pub const W2R_MOUSE_LEFT_CLICK: u32 = 2;
@@ -1126,7 +1129,8 @@ pub struct W2rOverlay {
         align: u32,
         colour: u32,
     ),
-    /// The width `text` takes when `label` draws it. `flags` is 0.
+    /// The width `text` takes when `label` draws it. `flags` is 0, or `W2R_TEXT_SMALL` when the
+    /// label is drawn with it.
     pub measure: unsafe extern "C" fn(ctx: *mut c_void, text: W2rStr, flags: u32) -> f32,
 }
 pub const W2R_OVERLAY_V1_SIZE: u32 = core::mem::size_of::<W2rOverlay>() as u32;

@@ -293,6 +293,7 @@ typedef struct W2rRect {
 #define W2R_ALIGN_CENTRE 0x12u
 #define W2R_ALIGN_RIGHT 0x14u
 #define W2R_TEXT_TITLE 0x100u /* label flag: the menus' own font, for headings */
+#define W2R_TEXT_SMALL 0x200u /* W2rOverlay label and measure flag: 70 % of the HUD font's size */
 #define W2R_MOUSE_LEFT_DOWN 1u
 #define W2R_MOUSE_LEFT_CLICK 2u
 #define W2R_MOUSE_WHEEL_UP 4u   /* the wheel turned this frame, up */
@@ -336,7 +337,7 @@ typedef struct W2rOverlay {
     void (W2R_CALL *circle)(void *ctx, float x, float y, float radius, uint32_t colour, float thickness);
     /* One line of text in the HUD's font, placed in r by align (W2R_ALIGN_*). */
     void (W2R_CALL *label)(void *ctx, const W2rRect *r, W2rStr text, uint32_t align, uint32_t colour);
-    /* The width text takes when label draws it; flags is 0. */
+    /* The width text takes when label draws it; flags is 0, or W2R_TEXT_SMALL as the label has it. */
     float (W2R_CALL *measure)(void *ctx, W2rStr text, uint32_t flags);
 } W2rOverlay;
 #define W2R_OVERLAY_V1_SIZE ((uint32_t)sizeof(W2rOverlay))
