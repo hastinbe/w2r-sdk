@@ -1013,6 +1013,16 @@ pub struct W2rHost {
     /// list is full.
     pub create_map_favorite_set:
         unsafe extern "C" fn(token: *mut c_void, path: W2rStr, favorite: i32) -> W2rStatus,
+
+    // Appended after `create_map_favorite_set`: check `struct_size >= W2R_HOST_OVERLAY_DRAW_SIZE`.
+    /// Registers the plugin's one overlay drawing callback. The host calls it every frame of a
+    /// match or a replay with a `W2rOverlay`, whose calls draw on the map view in world pixels,
+    /// over the plugin's `overlay_set` items. Registering again replaces the callback; null
+    /// removes it. Implicit, like `overlay_set`. docs/abi.md, "Overlay".
+    pub overlay_draw_register: unsafe extern "C" fn(
+        token: *mut c_void,
+        callback: Option<W2rOverlayDrawFn>,
+    ) -> W2rStatus,
 }
 
 /// `screen_open` codes besides 0 (leave the page) and 1 (open Options on the manager's page).
@@ -1071,6 +1081,57 @@ pub struct W2rOverlayItem {
     pub y1: i32,
     pub rgba: u32,
 }
+
+/// Drawing calls for the map view, valid only inside the plugin's overlay drawing callback
+/// (`overlay_draw_register`). Everything is in world pixels (tile * 32), as `W2rOverlayItem` is:
+/// the host follows the scrolling and cuts off what leaves the map view. Colours are
+/// `r | g << 8 | b << 16 | a << 24`, as on `W2rScreen`, with the alpha as given; 0 as a `label`
+/// colour is the HUD's text colour. Strings are at most 128 bytes.
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct W2rOverlay {
+    /// At least `W2R_OVERLAY_V1_SIZE`.
+    pub struct_size: u32,
+    pub ctx: *mut c_void,
+    /// The part of the map on screen: a plugin skips what lies outside it.
+    pub view: W2rRect,
+    /// A filled rectangle, its corners rounded by `round` pixels (0: square).
+    pub fill: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, colour: u32, round: f32),
+    /// The outline of a rectangle, `thickness` pixels wide, drawn inside `r`.
+    pub outline: unsafe extern "C" fn(ctx: *mut c_void, r: *const W2rRect, colour: u32, thickness: f32),
+    /// A solid line from (x0, y0) to (x1, y1), `thickness` pixels wide.
+    pub line: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        x0: f32,
+        y0: f32,
+        x1: f32,
+        y1: f32,
+        colour: u32,
+        thickness: f32,
+    ),
+    /// A circle centred on (x, y): a ring `thickness` pixels wide, or filled when `thickness` is 0.
+    pub circle: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        x: f32,
+        y: f32,
+        radius: f32,
+        colour: u32,
+        thickness: f32,
+    ),
+    /// One line of text in the HUD's font, placed in `r` by `align` (`W2R_ALIGN_*`).
+    pub label: unsafe extern "C" fn(
+        ctx: *mut c_void,
+        r: *const W2rRect,
+        text: W2rStr,
+        align: u32,
+        colour: u32,
+    ),
+    /// The width `text` takes when `label` draws it. `flags` is 0.
+    pub measure: unsafe extern "C" fn(ctx: *mut c_void, text: W2rStr, flags: u32) -> f32,
+}
+pub const W2R_OVERLAY_V1_SIZE: u32 = core::mem::size_of::<W2rOverlay>() as u32;
+/// The callback `overlay_draw_register` takes.
+pub type W2rOverlayDrawFn = unsafe extern "C" fn(overlay: *const W2rOverlay);
 
 // ---- declared settings ----------------------------------------------------------------------
 /// A checkbox. Stored with `settings_set_i64` as 0 or 1.
@@ -1430,7 +1491,10 @@ pub const W2R_HOST_HOTKEY_LABEL_SIZE: u32 =
     (core::mem::offset_of!(W2rHost, hotkey_label) + core::mem::size_of::<usize>()) as u32;
 /// `struct_size` of a host that also has `create_map_path`, `create_map_select_path`,
 /// `create_map_current`, `create_map_favorites` and `create_map_favorite_set`.
-pub const W2R_HOST_MAP_PATH_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
+pub const W2R_HOST_MAP_PATH_SIZE: u32 =
+    (core::mem::offset_of!(W2rHost, create_map_favorite_set) + core::mem::size_of::<usize>()) as u32;
+/// `struct_size` of a host that also has `overlay_draw_register`.
+pub const W2R_HOST_OVERLAY_DRAW_SIZE: u32 = core::mem::size_of::<W2rHost>() as u32;
 
 // Mirrors tests/abi_layout.c. Keep both in sync.
 const _: () = {
@@ -1474,8 +1538,11 @@ mod tests {
         assert_eq!(W2R_UI_COLOR_EDIT_SIZE, 36);
         assert_eq!(W2R_UI_COMBO_SIZE, 40);
         assert_eq!(W2R_UI_BUTTON_ROW_SIZE, 44);
-        assert_eq!(size_of::<W2rHost>(), 208);
+        assert_eq!(size_of::<W2rHost>(), 212);
         assert_eq!(W2R_HOST_MAP_PATH_SIZE, 208);
+        assert_eq!(W2R_HOST_OVERLAY_DRAW_SIZE, 212);
+        assert_eq!(size_of::<W2rOverlay>(), 48);
+        assert_eq!(W2R_OVERLAY_V1_SIZE, 48);
         assert_eq!(W2R_HOST_HOTKEY_SERVICE_SIZE, 180);
         assert_eq!(W2R_HOST_HOTKEY_GET_SIZE, 184);
         assert_eq!(W2R_HOST_HOTKEY_LABEL_SIZE, 188);
@@ -1505,7 +1572,8 @@ mod tests {
         assert_eq!(size_of::<W2rPlugin>(), 40);
         assert_eq!(size_of::<W2rUi>(), 88);
         assert_eq!(W2R_UI_TEXT_EDIT_SIZE, 64);
-        assert_eq!(size_of::<W2rHost>(), 408);
+        assert_eq!(size_of::<W2rHost>(), 416);
+        assert_eq!(size_of::<W2rOverlay>(), 80);
         assert_eq!(W2R_HOST_MAP_FOLDER_SIZE, 192);
         assert_eq!(size_of::<W2rSettingDef>(), 168);
     }

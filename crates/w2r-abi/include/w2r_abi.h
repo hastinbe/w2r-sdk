@@ -321,6 +321,27 @@ typedef struct W2rScreen {
 #define W2R_SCREEN_V1_SIZE ((uint32_t)offsetof(W2rScreen, measure))
 #define W2R_SCREEN_V2_SIZE ((uint32_t)sizeof(W2rScreen))
 
+/* ---- overlay drawing (overlay_draw_register; only valid inside its callback) ------------- */
+/* Drawing calls for the map view, in world pixels (tile * 32) like W2rOverlayItem: the host follows
+   the scrolling and cuts off what leaves the view. Colours are r | g << 8 | b << 16 | a << 24, as on
+   W2rScreen; 0 as a label colour is the HUD's text colour. Strings are at most 128 bytes. */
+typedef struct W2rOverlay {
+    uint32_t struct_size; /* at least W2R_OVERLAY_V1_SIZE */
+    void *ctx;
+    W2rRect view; /* the part of the map on screen */
+    void (W2R_CALL *fill)(void *ctx, const W2rRect *r, uint32_t colour, float round);
+    void (W2R_CALL *outline)(void *ctx, const W2rRect *r, uint32_t colour, float thickness);
+    void (W2R_CALL *line)(void *ctx, float x0, float y0, float x1, float y1, uint32_t colour, float thickness);
+    /* A ring `thickness` pixels wide centred on (x, y); filled when thickness is 0. */
+    void (W2R_CALL *circle)(void *ctx, float x, float y, float radius, uint32_t colour, float thickness);
+    /* One line of text in the HUD's font, placed in r by align (W2R_ALIGN_*). */
+    void (W2R_CALL *label)(void *ctx, const W2rRect *r, W2rStr text, uint32_t align, uint32_t colour);
+    /* The width text takes when label draws it; flags is 0. */
+    float (W2R_CALL *measure)(void *ctx, W2rStr text, uint32_t flags);
+} W2rOverlay;
+#define W2R_OVERLAY_V1_SIZE ((uint32_t)sizeof(W2rOverlay))
+typedef void (W2R_CALL *W2rOverlayDrawFn)(const W2rOverlay *overlay);
+
 /* ---- declared settings (settings_declare; docs/abi.md, "Declared settings") ------------- */
 enum {
     W2R_SETTING_BOOL = 0,   /* a checkbox; settings_set_i64 with 0 or 1 */
@@ -710,6 +731,10 @@ typedef struct W2rHost {
     /* Stars (favorite 1) or unstars (0) the indexed map at `path`, in the browser's own list;
        W2R_E_NOT_FOUND when no indexed map has it, W2R_E_LIMIT when the list is full. */
     W2rStatus (W2R_CALL *create_map_favorite_set)(void *token, W2rStr path, int32_t favorite);
+    /* Appended after create_map_favorite_set (struct_size >= W2R_HOST_OVERLAY_DRAW_SIZE). Registers the
+       plugin's one overlay drawing callback, called every frame of a match or a replay with a
+       W2rOverlay; registering again replaces it, NULL removes it. Implicit, like overlay_set. */
+    W2rStatus (W2R_CALL *overlay_draw_register)(void *token, W2rOverlayDrawFn callback);
 } W2rHost;
 
 #define W2R_HOST_CREATE_UI_SIZE (offsetof(W2rHost, create_map_select) + sizeof(void *))
@@ -727,7 +752,8 @@ typedef struct W2rHost {
 #define W2R_HOST_HOTKEY_SERVICE_SIZE (offsetof(W2rHost, screen_open) + sizeof(void *))
 #define W2R_HOST_HOTKEY_GET_SIZE (offsetof(W2rHost, hotkey_get) + sizeof(void *))
 #define W2R_HOST_HOTKEY_LABEL_SIZE (offsetof(W2rHost, hotkey_label) + sizeof(void *))
-#define W2R_HOST_MAP_PATH_SIZE ((uint32_t)sizeof(W2rHost))
+#define W2R_HOST_MAP_PATH_SIZE (offsetof(W2rHost, create_map_favorite_set) + sizeof(void *))
+#define W2R_HOST_OVERLAY_DRAW_SIZE ((uint32_t)sizeof(W2rHost))
 
 /* ---- plugin table: returned by the plugin ---------------------------------------------- */
 typedef struct W2rPlugin {

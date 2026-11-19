@@ -185,6 +185,40 @@ outline the same colour, more opaque; `W2R_OVERLAY_RECT` a rectangle with its to
 (x0, y0), `x1` by `y1` world pixels, `rgba` the translucent fill and the outline the same colour,
 opaque (core 1.149.0; the waypoint assist's footprints of queued buildings). Parts off the view are not drawn. First user: the waypoint assist's shift-queue lines (core 1.61.0).
 
+### Drawing every frame (`W2rOverlay`)
+
+For what changes every frame or needs text (bars and numbers over units, say), a plugin draws
+itself instead of describing items. Appended after `create_map_favorite_set`
+(`host->struct_size >= W2R_HOST_OVERLAY_DRAW_SIZE`, core 2.7.0). Implicit, no capability.
+
+`overlay_draw_register(token, callback)` registers the plugin's one drawing callback (null removes
+it; registering again replaces it). Every frame of a match or a replay the host calls it with a
+`W2rOverlay`, under the same guard as `on_ui`: a fault disables the plugin. The table is valid only
+inside the call. What it draws lies over the plugin's `overlay_set` items and the units, and under
+the minimap pings and the HUD.
+
+Everything is in world pixels, like the items: the host follows the scrolling and cuts off what
+leaves the map view. `view` is the part of the map on screen, so a plugin can skip what lies
+outside it. Colours are `r | g << 8 | b << 16 | a << 24`, as on `W2rScreen` (not the items'
+`0xRRGGBBAA`), drawn with the alpha as given. Strings are at most 128 bytes; a longer or invalid
+one draws nothing.
+
+| Call | Draws |
+|---|---|
+| `fill(ctx, r, colour, round)` | a filled rectangle, corners rounded by `round` pixels (0: square) |
+| `outline(ctx, r, colour, thickness)` | a rectangle's outline, `thickness` pixels wide, inside `r` |
+| `line(ctx, x0, y0, x1, y1, colour, thickness)` | a solid line |
+| `circle(ctx, x, y, radius, colour, thickness)` | a ring `thickness` pixels wide centred on (x, y); filled when `thickness` is 0 |
+| `label(ctx, r, text, align, colour)` | one line of text in the HUD's font, placed in `r` by `W2R_ALIGN_*`; colour 0 is the HUD's text colour |
+| `measure(ctx, text, flags)` | the width `label` gives `text`; `flags` is 0 |
+
+A plugin checks `overlay->struct_size >= W2R_OVERLAY_V1_SIZE` before using the table; later calls
+are appended. The callback only draws: host calls that change state belong in the event handler.
+A plugin that hooks the game's own unit drawing to collect what to draw may see its callback run
+before the units of the same frame, so it draws what it collected last. `examples/overlay-draw`
+uses every call once. First user: Buff Icons
+(countdown numbers and see-through health bars).
+
 ## Create screen
 
 Appended after the first release (`host->struct_size >= W2R_HOST_CREATE_UI_SIZE`, `W2R_HOST_CREATE_UI_SIZE` in the header; an older host has a smaller table). Implicit, no capability: the plugin

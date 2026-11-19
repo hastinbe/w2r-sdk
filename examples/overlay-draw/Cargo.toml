@@ -1,0 +1,21 @@
+[package]
+name = "example-overlay"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Example native plugin: drawing on the map view every frame with the W2rOverlay table"
+
+[lib]
+name = "example_overlay"
+crate-type = ["cdylib"]
+
+[dependencies]
+w2r-abi = { path = "../../crates/w2r-abi" }
+
+[lints.clippy]
+# Exports and callbacks are called by the host; the ABI header documents the contract.
+missing_safety_doc = "allow"
+
+# Built on its own, not as part of the SDK workspace.
+[workspace]
